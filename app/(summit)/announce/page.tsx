@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SEGMENTS, useNotifications, useSendNotification, type Segment } from "@/lib/summit/notifications";
-import e from "express";
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
