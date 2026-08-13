@@ -13,7 +13,7 @@ const isDev = process.env.NODE_ENV !== "production";
 // The backend API is a separate origin (different host/port), so it must be
 // explicitly allow-listed in connect-src / img-src or every fetch and
 // backend-served image (avatars, uploads under /public) is blocked by the CSP.
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 let apiOrigin = apiUrl;
 /** Same origin, in the shape next/image's remotePatterns wants. */
 let apiImageHost: { protocol: "http" | "https"; hostname: string; port?: string } | null = null;
@@ -46,8 +46,10 @@ const csp = [
   `style-src 'self' 'unsafe-inline'`,
   // i.ytimg.com serves the poster frame for the marketing site's YouTube embed.
   `img-src 'self' data: blob: https://i.ytimg.com ${apiOrigin}`,
+  
   `font-src 'self' data:`,
-  `connect-src 'self' ${apiOrigin}${isDev ? " ws: wss:" : ""}`,
+    `connect-src 'self' ${apiOrigin} ${apiOrigin.replace(/^http/, "ws")}${isDev ? " ws: wss:" : ""}`,
+
   // Without this, default-src 'self' refuses the YouTube player outright.
   // Scoped to the one host that needs it, and to the -nocookie origin: the
   // player is only framed, never scripted by us, so script-src stays untouched.
@@ -66,7 +68,8 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
+      value: "camera=(), microphone=(self), geolocation=()",
+
   },
   // HSTS only matters over HTTPS; harmless on http://localhost in dev but only
   // emit it in production to avoid pinning a dev machine to HTTPS.
@@ -90,23 +93,10 @@ const nextConfig: NextConfig = {
   // (fflate `new Worker`) doesn't break the Turbopack SSR build.
   serverExternalPackages: ["jspdf", "jspdf-autotable", "xlsx"],
 
-  images: {
-    remotePatterns: [
-      // Poster frames for the marketing site's YouTube embed.
-      { protocol: "https", hostname: "i.ytimg.com", pathname: "/vi/**" },
-      // Blog cover images. The API serves them itself (the bucket is private
-      // and signed URLs expire), so its origin has to be allowed here. Derived
-      // from the same env var as the CSP, and scoped to /blog/ so allowing
-      // covers does not allow the whole API as an image source.
-      ...(apiImageHost
-        ? [{ ...apiImageHost, pathname: "/blog/**" } as const]
-        : []),
-              ...(apiImageHost
-        ? [{ ...apiImageHost, pathname: "/shop/team/**" } as const]
-        : []),
-
-    ],
+   images: {
+    unoptimized: true,
   },
+
 
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

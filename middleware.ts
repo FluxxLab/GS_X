@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PROTECTED = ["/overview", "/session", "/delegates", "/live-ops", "/trivia", "/announce", "/security"]
 
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest){
     const {pathname} = req.nextUrl;
 
     if (PROTECTED.some((p) => pathname.startsWith(p)) && !req.cookies.get("gs26_refresh")) {
