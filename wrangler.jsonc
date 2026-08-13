@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "pic-gs26-admin",
+  "name": "gs-x",
   "compatibility_date": "2026-07-21",
   // OpenNext runs the Next.js server on the Node.js-compat Workers runtime.
   "compatibility_flags": ["nodejs_compat"],
@@ -15,6 +15,6 @@
   // Incremental cache (ISR/data cache) is optional and needs an R2 bucket:
   // create one, then add here and reference it from open-next.config.ts:
   //   "r2_buckets": [
-  //     { "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "maizube-erp-cache" }
+  //     { "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "gs26-cache" }
   //   ]
 }
