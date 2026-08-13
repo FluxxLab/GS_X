@@ -1,0 +1,51 @@
+name: Frontend CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # `next build` runs the TypeScript type-check — this is the gate that catches
+    # production-only type errors that `next dev` silently skips.
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Fails the build if a high/critical CVE lands in a PRODUCTION dependency.
+      # Dev-only tooling advisories are excluded (they never ship).
+      - name: Security audit (production deps)
+        run: pnpm audit --prod --audit-level high
+
+      # Blocking: fails on error-level rules. `any`, unused-vars, and the React
+      # Compiler readiness rules are warnings (tracked debt) and do not block.
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      # `build:next` is the raw `next build` (the type-check gate). The plain
+      # `build` script runs the Cloudflare adapter, which CI does not need.
+      - name: Build (includes type-check)
+        run: pnpm run build:next

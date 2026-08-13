@@ -1,0 +1,396 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-inter: var(--font-inter);
+  --font-schoolbell: var(--font-schoolbell);
+  --font-brand: var(--font-brand);
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+/* Scrollbars are hidden app-wide (below), so any stray horizontal overflow lets
+ * the page drag sideways with no visible cue. Clip it at the root and kill the
+ * horizontal overscroll bounce. Vertical scrolling is untouched; inner
+ * overflow-x-auto regions (e.g. dashboard wide tables) keep their own scroll. */
+html {
+  overflow-x: hidden; /* fallback: older iOS Safari (<16) ignores `clip` */
+  overflow-x: clip;    /* modern browsers: clip, no sticky/scroll-context side effect */
+  overscroll-behavior-x: none;
+  max-width: 100%;
+}
+body {
+  overflow-x: hidden;
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+*:focus,
+*:focus-visible {
+  outline: none;
+}
+
+/* Hide scrollbars app-wide while keeping scroll functionality. */
+html,
+body,
+* {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE / legacy Edge */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;     /* Chrome, Safari, Edge (WebKit/Blink) */
+}
+
+body {
+  font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .payroll-tooltip {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    background: #081340;
+    color: #FFFFFF;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    font-family: var(--font-inter), Inter, sans-serif;
+  }
+
+  .payroll-tooltip-arrow {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background: #081340;
+  }
+
+  .payroll-bar-wrapper:hover .payroll-tooltip {
+    opacity: 1;
+  }
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* Tiptap rich-text content: restore list/paragraph rendering that Tailwind's
+   preflight resets, scoped to the editor so it doesn't leak elsewhere. */
+.tiptap-content > * + * {
+  margin-top: 0.75rem;
+}
+.tiptap-content ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+.tiptap-content ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.tiptap-content li > p {
+  margin: 0;
+}
+.tiptap-content h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.tiptap-content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.tiptap-content h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+.tiptap-content blockquote {
+  border-left: 3px solid #DAE0EF;
+  padding-left: 0.75rem;
+  color: #70768E;
+}
+
+/* Date inputs keep native picker icon by default.
+   Pages that want a custom icon should hide it locally. */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Hide app chrome (navbar, footer, password banner, chat widget) when printing
+   so only the page/report content appears. Belt-and-suspenders: the explicit
+   `.print\:hidden` rule forces the utility even if the Tailwind `print:` variant
+   isn't generated, and the `header`/`footer` tag selectors catch the navbar and
+   footer directly. Report content uses <div>s, so it's unaffected. */
+@media print {
+  .print\:hidden,
+  header,
+  footer {
+    display: none !important;
+  }
+}
+/* Toast slide-in (used by the global Toaster and the legacy page toasts). */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Public-site motion ─────────────────────────────────────────────────────
+   Entrance animation for above-the-fold hero content. Pure CSS (no JS), so it
+   runs on first paint and can never strand content hidden. Scroll-reveals for
+   below-the-fold sections are handled by the <Reveal> component instead.
+   `both` fill keeps elements hidden only during their short stagger delay. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-rise {
+  animation: rise-in 1000ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-rise-1 { animation-delay: 140ms; }
+.animate-rise-2 { animation-delay: 280ms; }
+.animate-rise-3 { animation-delay: 440ms; }
+
+/* Gentle idle float for decorative badges (e.g. the hero's Free Delivery disc). */
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+.animate-float {
+  animation: float-soft 4.5s ease-in-out 1.2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-rise-1,
+  .animate-rise-2,
+  .animate-rise-3,
+  .animate-float {
+    animation: none;
+  }
+}
+
+/* ── System-wide font-weight softening ──────────────────────────────────────
+   Inter renders heavy at the top end, so the UI read as too thick. Step every weight utility
+   down one notch app-wide (loaded Inter weights: 300-800). Three clear tiers
+   remain: 700 display headings · 600 bold emphasis · 500 labels/body-emphasis.
+   `!important` + un-layered so it beats Tailwind v4's utility layer and the few
+   inline weights. Tweak here to re-tune globally; never per-component. */
+.font-black      { font-weight: 500 !important; }
+.font-extrabold  { font-weight: 500 !important; }
+.font-bold       { font-weight: 500 !important; }
+.font-semibold   { font-weight: 500 !important; }
+
+/* ── Quiet-enterprise title scale ────────────────────────────────────────────
+   Page titles were 28px extrabold — display-poster weight that made every
+   screen shout. Standard line-of-business systems (the benchmark: FCT-IRS
+   portal) title at ~22-24px semibold and build hierarchy from SIZE, not
+   weight. Scoped to h1 so 28px stat figures elsewhere keep their size. */
+h1.text-\[28px\] {
+  font-size: 24px !important;
+}
+
+/* ── Date inputs: use the lucide calendar-range icon app-wide ────────────────
+   Replace the browser's default date/datetime picker glyph with our house
+   calendar-range icon (muted #70768E) so every native <input type="date|…">
+   matches. WebKit/Blink only exposes the indicator; the SVG is inlined as a
+   data URI. Tweak the stroke colour here to retune globally. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  opacity: 1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2370768E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath d='M16 2v4'/%3E%3Cpath d='M3 10h18'/%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M17 14h-6'/%3E%3Cpath d='M13 18H7'/%3E%3Cpath d='M7 14h.01'/%3E%3Cpath d='M17 18h.01'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 18px 18px;
+}
+
+/* ── ERP mobile adaptation ──────────────────────────────────────────────────
+   The dashboard was built desktop-first. Rather than editing ~150 pages,
+   adapt the recurring primitives centrally (same pattern as the weight
+   overrides above): wide tables scroll in place, fixed 3/4-column stat
+   grids drop to phone-friendly columns, and desktop gutters tighten.
+   Scoped to .erp-shell (the dashboard layout root) so the marketing site
+   keeps its own responsive rules. */
+@media (max-width: 767px) {
+  .erp-shell table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .erp-shell .grid-cols-3,
+  .erp-shell .grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .erp-shell .px-10,
+  .erp-shell .px-8 {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .erp-shell .p-10,
+  .erp-shell .p-8 {
+    padding: 16px !important;
+  }
+}
+@media (max-width: 480px) {
+  .erp-shell .grid-cols-3,
+  .erp-shell .grid-cols-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@theme {
+  --color-summit-violet: #090415;
+  --color-summit-lilac: #f6f4fb;
+  --color-summit-smoke: #9c93ae;
+  --color-summit-cerise: #e5259a;
+  --color-summit-cerulean: #00b9e6;
+  --color-summit-cream: #f2c86c;
+  --color-summit-green: #28bc5e;
+}
+
+@utility glass-card {
+  background: rgb(246 244 251 / 0.06);
+  border: 1px solid rgb(246 244 251 / 0.12);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 8px 32px rgb(0 0 0 / 0.4),
+    inset 0 1px 0 1px rgb(255 255 255 / 0.08);
+}
