@@ -97,6 +97,10 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
 
+    async redirects() {
+    return [{ source: "/", destination: "/overview", permanent: false }];
+  },
+
 
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
