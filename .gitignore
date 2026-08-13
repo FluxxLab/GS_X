@@ -1,4 +1,4 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+﻿# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
 /node_modules
@@ -43,8 +43,9 @@ next-env.d.ts
 # Markdown docs are kept locally, not published to the repo
 *.md
 *.MD
+!README.md
 
-# Claude Code / agent tooling — local only, not part of the app
+# Claude Code / agent tooling â€” local only, not part of the app
 .claude/
 .agents/
 
