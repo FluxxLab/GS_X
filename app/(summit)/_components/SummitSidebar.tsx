@@ -13,6 +13,7 @@ import {
   Users,
   LucideIcon,
   Zap,
+  Mic
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,9 @@ const NAV = [
     {href: "/trivia", label: "Trivia", icon: Gamepad2},
     {href: "/announce", label: "Announce", icon: Megaphone},
     {href: "/security", label: "Security", icon: ShieldAlert},
+    {href: "/discussions", label: "Discussions", icon: RadioTower},
+    { href: "/capture", label: "Capture", icon: Mic },
+
     
 ];
 
