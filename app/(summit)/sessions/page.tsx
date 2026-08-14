@@ -91,6 +91,11 @@ export default function SessionsPage(){
                     <p className="text-xs text-summit-smoke">
                       {s.room} · {s.type}
                     </p>
+                    <p className="text-xs text-summit-smoke">
+                      {s.room} · {s.type}
+                      {s.speakers?.length ? ` · ${s.speakers.map((sp) => sp.name).join(", ")}` : ""}
+                    </p>
+
                   </button>
                   <span className="rounded-full bg-summit-cerulean/15 px-2.5 py-0.5 text-[11px] tracking-wide text-summit-cerulean uppercase">
                     {s.track}

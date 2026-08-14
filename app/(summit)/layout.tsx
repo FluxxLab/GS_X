@@ -2,6 +2,7 @@ import { Archivo, Inter } from "next/font/google";
 import { SummitSidebar } from "./_components/SummitSidebar";
 import { Divide } from "lucide-react";
 import RealtimeRefresher from "./_components/RealtimeRefresher";
+import { CommandPalette } from "./_components/CommandPalette";
 
 
 
@@ -19,6 +20,7 @@ export default function SummitLayout({children}: {children: React.ReactNode}){
         <SummitSidebar />
         <main className="min-w-0 flex-1 px-5 pt-8 pb-10">
           <RealtimeRefresher />
+          <CommandPalette />
           {children}
         </main>
       </div>

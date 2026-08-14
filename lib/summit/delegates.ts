@@ -52,6 +52,29 @@ export function useDelegates(filters: DelegateFilters) {
   });
 }
 
+export function useAdmins() {
+  return useQuery({
+    queryKey: ["admins"],
+    queryFn: () => api<Delegate[]>("/delegates/admins"),
+  });
+}
+
+export function useSetAdmin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, admin }: { id: string; admin: boolean }) =>
+      api<Delegate>(`/delegates/${id}/admin`, {
+        method: "PATCH",
+        body: JSON.stringify({ admin }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admins"] });
+      qc.invalidateQueries({ queryKey: ["delegates"] });
+    },
+  });
+}
+
+
 export function useSetTier() {
   const qc = useQueryClient();
   return useMutation({

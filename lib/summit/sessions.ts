@@ -27,8 +27,14 @@ export interface Session {
   type: string;
   audience?: string;
   status: SessionStatus;
+   speakers?: { id: string; name: string; role: string | null; organisation: string | null }[];
 }
-export type SessionInput = Omit<Session, "id">;
+
+
+
+export type SessionInput = Omit<Session, "id" | "status" | "speakers"> & {
+  speakerIds?: string[];
+};
 
  async function fetchSession(): Promise<Session[]>{
     const res = await api<Session[]>("/sessions");
