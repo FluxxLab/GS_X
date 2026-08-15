@@ -10,6 +10,13 @@ import {
   type Track,
 } from "@/lib/summit/sessions";
 import { useSpeakers, useCreateSpeaker } from "@/lib/summit/speakers";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -87,18 +94,28 @@ const inputCls =
       <input className={inputCls} placeholder="Title" required value={form.title} onChange={(e) => set("title", e.target.value)} />
       <textarea className={inputCls} placeholder="Description" rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <select className={inputCls} value={form.day} onChange={(e) => set("day", Number(e.target.value))}>
-          <option value={1}>Day 1 — 8 Sept</option>
-          <option value={2}>Day 2 — 9 Sept</option>
-        </select>
+        <Select value={form.day.toString()} onValueChange={(val) => set("day", Number(val))}>
+          <SelectTrigger className={inputCls}>
+            <SelectValue placeholder="Day" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">Day 1 — 8 Sept</SelectItem>
+            <SelectItem value="2">Day 2 — 9 Sept</SelectItem>
+          </SelectContent>
+        </Select>
         <input className={inputCls} type="datetime-local" required value={form.startsAt} onChange={(e) => set("startsAt", e.target.value)} />
         <input className={inputCls} type="datetime-local" required value={form.endsAt} onChange={(e) => set("endsAt", e.target.value)} />
         <input className={inputCls} placeholder="Room" required value={form.room} onChange={(e) => set("room", e.target.value)} />
-        <select className={inputCls} value={form.track} onChange={(e) => set("track", e.target.value)}>
-          {TRACKS.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+        <Select value={form.track} onValueChange={(val) => set("track", val)}>
+          <SelectTrigger className={inputCls}>
+            <SelectValue placeholder="Track" />
+          </SelectTrigger>
+          <SelectContent>
+            {TRACKS.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <input className={inputCls} placeholder="Type (e.g. Breakout Session)" required value={form.type} onChange={(e) => set("type", e.target.value)} />
         <input className={inputCls} placeholder="Audience (optional)" value={form.audience} onChange={(e) => set("audience", e.target.value)} />
       </div>

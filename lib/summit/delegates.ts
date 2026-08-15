@@ -103,6 +103,29 @@ export function useAddRegistrationEntry() {
   });
 }
 
+export function useUpdateRegistrationEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string; email?: string; inviteCode?: string; name?: string; assignedTier?: Tier }) =>
+      api<RegistrationEntry>(`/delegates/registration-list/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["registration-list"] }),
+  });
+}
+
+export function useDeleteRegistrationEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<void>(`/delegates/registration-list/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["registration-list"] }),
+  });
+}
+
 export async function downloadDelegatesCsv() {
   const res = await fetch("/api/gs26/delegates/export?format=csv");
   if (!res.ok) throw new Error("Export failed — are you signed in?");

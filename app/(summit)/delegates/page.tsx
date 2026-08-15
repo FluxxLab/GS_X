@@ -8,12 +8,22 @@ import {
   GRANTABLE_TIERS,
   TIERS,
   downloadDelegatesCsv,
-  useAddRegistrationEntry,
   useDelegates,
   useRegistrationList,
+  useAddRegistrationEntry,
+  useUpdateRegistrationEntry,
+  useDeleteRegistrationEntry,
   useSetTier,
   type Tier,
+  type RegistrationEntry,
 } from "@/lib/summit/delegates";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const inputCls =
   "rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -67,7 +77,8 @@ function Directory() {
   const [search, setSearch] = useState("");
   const [tier, setTier] = useState<Tier | "">("");
   const [track, setTrack] = useState("");
-  const { data: delegates, isLoading, error } = useDelegates({ search, tier, track });
+  const { data: rawDelegates, isLoading, error } = useDelegates({ search, tier, track });
+  const delegates = (rawDelegates ?? []).filter(d => d.accessTier !== "admin");
   const setTierMut = useSetTier();
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -93,18 +104,28 @@ function Directory() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select className={inputCls} value={tier} onChange={(e) => setTier(e.target.value as Tier | "")}>
-          <option value="">All tiers</option>
-          {TIERS.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-        <select className={inputCls} value={track} onChange={(e) => setTrack(e.target.value)}>
-          <option value="">All tracks</option>
-          {TRACKS.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+        <Select value={tier || "all"} onValueChange={(val) => setTier(val === "all" ? "" : val as Tier)}>
+          <SelectTrigger className={cn(inputCls, "w-32")}>
+            <SelectValue placeholder="All tiers" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All tiers</SelectItem>
+            {TIERS.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={track || "all"} onValueChange={(val) => setTrack(val === "all" ? "" : val)}>
+          <SelectTrigger className={cn(inputCls, "w-40")}>
+            <SelectValue placeholder="All tracks" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All tracks</SelectItem>
+            {TRACKS.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="ml-auto flex flex-col items-end">
           <button
             onClick={onExport}
@@ -140,7 +161,7 @@ function Directory() {
             </tr>
           </thead>
           <tbody className="divide-y divide-summit-lilac/10">
-            {(delegates ?? []).map((d) => (
+            {delegates.map((d) => (
               <tr key={d.id}>
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-2">
@@ -174,25 +195,31 @@ function Directory() {
                   </div>
                 </td>
                 <td className="py-3">
-                  <select
+                  <Select
                     value={d.accessTier}
                     disabled={setTierMut.isPending}
-                    onChange={(e) => setTierMut.mutate({ id: d.id, tier: e.target.value as Tier })}
-                    className={cn(
-                      "cursor-pointer rounded-full border-0 px-3 py-1 text-xs outline-none",
-                      TIER_STYLES[d.accessTier],
-                    )}
+                    onValueChange={(val) => setTierMut.mutate({ id: d.id, tier: val as Tier })}
                   >
-                    {TIERS.map((t) => (
-                      <option key={t} value={t} className="bg-summit-violet text-summit-lilac">
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger
+                      className={cn(
+                        "h-auto w-[110px] cursor-pointer rounded-full border-0 px-3 py-1 text-xs outline-none",
+                        TIER_STYLES[d.accessTier],
+                      )}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIERS.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </td>
               </tr>
             ))}
-            {!isLoading && (delegates ?? []).length === 0 && (
+            {!isLoading && delegates.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-6 text-center text-summit-smoke">
                   No delegates match.
@@ -231,12 +258,16 @@ function RegistrationList() {
           value={form.inviteCode} onChange={(e) => setForm((f) => ({ ...f, inviteCode: e.target.value }))} />
         <input className={cn(inputCls, "w-48")} placeholder="Label / name (optional)"
           value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-        <select className={inputCls} value={form.assignedTier}
-          onChange={(e) => setForm((f) => ({ ...f, assignedTier: e.target.value as Tier }))}>
-          {GRANTABLE_TIERS.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+        <Select value={form.assignedTier} onValueChange={(val) => setForm((f) => ({ ...f, assignedTier: val as Tier }))}>
+          <SelectTrigger className={cn(inputCls, "w-40")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GRANTABLE_TIERS.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <button type="submit" disabled={add.isPending}
           className="flex items-center gap-2 rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white disabled:opacity-50">
           <Plus className="size-4" /> {add.isPending ? "Adding…" : "Add entry"}
@@ -254,20 +285,7 @@ function RegistrationList() {
       <section className="glass-card p-5">
         <ul className="flex flex-col divide-y divide-summit-lilac/10">
           {(entries ?? []).map((r) => (
-            <li key={r.id} className="flex items-center gap-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{r.name ?? r.email ?? r.inviteCode}</p>
-                <p className="truncate text-xs text-summit-smoke">
-                  {r.email ?? "no email"} {r.inviteCode ? `· code ${r.inviteCode}` : ""}
-                </p>
-              </div>
-              <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] uppercase", TIER_STYLES[r.assignedTier])}>
-                {r.assignedTier}
-              </span>
-              <span className={cn("text-xs", r.claimedAt ? "text-summit-green" : "text-summit-smoke")}>
-                {r.claimedAt ? "claimed" : "unclaimed"}
-              </span>
-            </li>
+            <RegistrationEntryItem key={r.id} r={r} />
           ))}
           {!isLoading && (entries ?? []).length === 0 && (
             <li className="py-4 text-sm text-summit-smoke">No entries yet — add the first above.</li>
@@ -275,5 +293,88 @@ function RegistrationList() {
         </ul>
       </section>
     </>
+  );
+}
+
+function RegistrationEntryItem({ r }: { r: RegistrationEntry }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState({
+    email: r.email || "",
+    inviteCode: r.inviteCode || "",
+    name: r.name || "",
+    assignedTier: r.assignedTier,
+  });
+  
+  const update = useUpdateRegistrationEntry();
+  const del = useDeleteRegistrationEntry();
+
+  if (isEditing) {
+    return (
+      <li className="flex flex-wrap items-center gap-3 py-3">
+        <input className={cn(inputCls, "w-40", "px-2 py-1")} placeholder="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+        <input className={cn(inputCls, "w-32", "px-2 py-1")} placeholder="Code" value={form.inviteCode} onChange={e => setForm(f => ({ ...f, inviteCode: e.target.value }))} />
+        <input className={cn(inputCls, "w-32", "px-2 py-1")} placeholder="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        <Select value={form.assignedTier} onValueChange={val => setForm(f => ({ ...f, assignedTier: val as Tier }))}>
+          <SelectTrigger className={cn(inputCls, "w-32", "px-2 py-1")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GRANTABLE_TIERS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            className="text-xs font-medium text-summit-green hover:underline disabled:opacity-50"
+            disabled={update.isPending}
+            onClick={async () => {
+              await update.mutateAsync({ id: r.id, ...form });
+              setIsEditing(false);
+            }}
+          >
+            {update.isPending ? "Saving…" : "Save"}
+          </button>
+          <button className="text-xs text-summit-smoke hover:underline" onClick={() => setIsEditing(false)}>
+            Cancel
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className="group flex items-center gap-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{r.name ?? r.email ?? r.inviteCode}</p>
+        <p className="truncate text-xs text-summit-smoke">
+          {r.email ?? "no email"} {r.inviteCode ? `· code ${r.inviteCode}` : ""}
+        </p>
+      </div>
+      <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] uppercase", TIER_STYLES[r.assignedTier])}>
+        {r.assignedTier}
+      </span>
+      <span className={cn("w-16 text-right text-xs", r.claimedAt ? "text-summit-green" : "text-summit-smoke")}>
+        {r.claimedAt ? "claimed" : "unclaimed"}
+      </span>
+      <div className="flex w-24 items-center justify-end gap-3 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          className="text-xs font-medium text-summit-cerulean hover:underline disabled:opacity-50"
+          onClick={() => setIsEditing(true)}
+          disabled={del.isPending}
+        >
+          Edit
+        </button>
+        <button
+          className="text-xs font-medium text-summit-cerise hover:underline disabled:opacity-50"
+          onClick={() => {
+            if (confirm("Are you sure you want to delete this entry?")) {
+              del.mutate(r.id);
+            }
+          }}
+          disabled={del.isPending}
+        >
+          Delete
+        </button>
+      </div>
+    </li>
   );
 }

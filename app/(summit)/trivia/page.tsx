@@ -13,6 +13,13 @@ import {
   type TriviaOption,
   type TriviaStatus,
 } from "@/lib/summit/trivia";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -86,12 +93,16 @@ export default function TriviaPage() {
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <select className={inputCls} value={form.correctOption}
-              onChange={(e) => set("correctOption", e.target.value)}>
-              {TRIVIA_OPTIONS.map((o) => (
-                <option key={o} value={o}>Correct answer: {o}</option>
-              ))}
-            </select>
+            <Select value={form.correctOption} onValueChange={(val) => set("correctOption", val)}>
+              <SelectTrigger className={inputCls}>
+                <SelectValue placeholder="Correct answer" />
+              </SelectTrigger>
+              <SelectContent>
+                {TRIVIA_OPTIONS.map((o) => (
+                  <SelectItem key={o} value={o}>Correct answer: {o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <input className={inputCls} placeholder="Explanation (optional)"
               value={form.explanation} onChange={(e) => set("explanation", e.target.value)} />
           </div>

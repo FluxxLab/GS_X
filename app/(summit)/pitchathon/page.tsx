@@ -5,6 +5,13 @@ import { Plus, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TRACKS, type Track } from "@/lib/summit/sessions";
 import { usePitchEntries, useCreatePitchEntry } from "@/lib/summit/voting";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -79,11 +86,16 @@ export default function PitchathonPage() {
               value={form.country}
               onChange={(e) => set("country", e.target.value)}
             />
-            <select className={inputCls} value={form.track} onChange={(e) => set("track", e.target.value)}>
-              {TRACKS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+            <Select value={form.track} onValueChange={(val) => set("track", val as Track)}>
+              <SelectTrigger className={inputCls}>
+                <SelectValue placeholder="Track" />
+              </SelectTrigger>
+              <SelectContent>
+                {TRACKS.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <textarea
             className={inputCls}

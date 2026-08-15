@@ -6,6 +6,13 @@ import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/summit/sessions";
 import { useCapture } from "@/lib/summit/capture";
 import { getSocket, joinRoom, leaveRoom } from "@/lib/summit/socket";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CaptionEvent {
   sessionId: string;
@@ -67,17 +74,21 @@ export default function CapturePage() {
       </header>
 
       <div className="glass-card flex flex-col gap-4 p-6">
-        <select
-          value={room}
+        <Select
+          value={room || "none"}
           disabled={capturing || state === "starting"}
-          onChange={(e) => setRoom(e.target.value)}
-          className="w-72 rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac focus:border-summit-cerise"
+          onValueChange={(val) => setRoom(val === "none" ? "" : val)}
         >
-          <option value="">Pick this laptop&apos;s room…</option>
-          {rooms.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
+          <SelectTrigger className="w-72 rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac focus:border-summit-cerise">
+            <SelectValue placeholder="Pick this laptop&apos;s room…" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Pick this laptop&apos;s room…</SelectItem>
+            {rooms.map((r) => (
+              <SelectItem key={r} value={r}>{r}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {room && !liveHere && (
           <p className="text-sm text-summit-cream">

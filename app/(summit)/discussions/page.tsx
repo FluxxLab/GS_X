@@ -11,6 +11,13 @@ import {
   useModerationThread,
   useTranscript,
 } from "@/lib/summit/discussions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const inputCls =
   "rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac focus:border-summit-cerise";
@@ -35,18 +42,19 @@ export default function DiscussionsPage() {
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
-        <select
-          className={cn(inputCls, "min-w-72")}
-          value={sessionId ?? ""}
-          onChange={(e) => setSessionId(e.target.value || null)}
-        >
-          <option value="">Pick a session…</option>
-          {(sessions ?? []).map((s) => (
-            <option key={s.id} value={s.id}>
-              Day {s.day} · {s.title} ({s.room})
-            </option>
-          ))}
-        </select>
+        <Select value={sessionId ?? "none"} onValueChange={(val) => setSessionId(val === "none" ? null : val)}>
+          <SelectTrigger className={cn(inputCls, "min-w-72 w-auto")}>
+            <SelectValue placeholder="Pick a session…" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Pick a session…</SelectItem>
+            {(sessions ?? []).map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                Day {s.day} · {s.title} ({s.room})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {selected && (
           <div className="flex gap-2">

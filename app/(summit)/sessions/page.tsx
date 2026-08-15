@@ -11,8 +11,16 @@ import {
   useBulkCreateSessions,
   type Session,
   type SessionStatus,
+  type SessionStatus,
 } from "@/lib/summit/sessions";
 import { SessionForm } from "@/app/(summit)/_components/SessionForm";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const STATUS_STYLES: Record<SessionStatus, string> = {
   scheduled: "bg-summit-lilac/10 text-summit-smoke",
@@ -148,23 +156,29 @@ export default function SessionsPage(){
                   <span className="rounded-full bg-summit-cerulean/15 px-2.5 py-0.5 text-[11px] tracking-wide text-summit-cerulean uppercase">
                     {s.track}
                   </span>
-                  <select
+                  <Select
                     value={s.status}
                     disabled={updateStatus.isPending}
-                    onChange={(e) =>
-                      updateStatus.mutate({ id: s.id, status: e.target.value as SessionStatus })
+                    onValueChange={(val) =>
+                      updateStatus.mutate({ id: s.id, status: val as SessionStatus })
                     }
-                    className={cn(
-                      "cursor-pointer rounded-full border-0 px-3 py-1 text-xs outline-none",
-                      STATUS_STYLES[s.status],
-                    )}
                   >
-                    {SESSION_STATUSES.map((st) => (
-                      <option key={st} value={st} className="bg-summit-violet text-summit-lilac">
-                        {st}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger
+                      className={cn(
+                        "h-auto w-[120px] cursor-pointer rounded-full border-0 px-3 py-1 text-xs outline-none",
+                        STATUS_STYLES[s.status],
+                      )}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SESSION_STATUSES.map((st) => (
+                        <SelectItem key={st} value={st}>
+                          {st}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </li>
               ))}
           </ul>
