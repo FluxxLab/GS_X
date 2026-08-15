@@ -53,6 +53,14 @@ export function useCreateSession(){
     });
 }
 
+export function useBulkCreateSessions(){
+    const qc = useQueryClient();
+    return useMutation<Session[], Error, SessionInput[]>({
+        mutationFn: (inputs: SessionInput[]) => api<Session[]>("/sessions/bulk", {method: "POST", body: JSON.stringify(inputs)}),
+        onSuccess: () => qc.invalidateQueries({queryKey: ["sessions"]}),
+    });
+}
+
 export function useUpdateSession(){
     const qc  = useQueryClient();
     return useMutation({

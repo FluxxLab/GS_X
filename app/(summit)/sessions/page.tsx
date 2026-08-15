@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { Plus } from "lucide-react";
+import { useState, useRef } from "react";
+import { Plus, Upload } from "lucide-react";
+import { read, utils } from "xlsx";
 import { cn } from "@/lib/utils";
 import {
   SESSION_STATUSES,
   useSessions,
   useUpdateSessionStatus,
+  useBulkCreateSessions,
   type Session,
   type SessionStatus,
 } from "@/lib/summit/sessions";
@@ -25,9 +27,39 @@ function fmtTime(iso: string) {
 export default function SessionsPage(){
     const {data: sessions, isLoading, error} = useSessions();
     const updateStatus = useUpdateSessionStatus();
+    const bulkCreate = useBulkCreateSessions();
     const [editing, setEditing] = useState<Session | null>(null);
     const [creating, setCreating] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const buffer = await file.arrayBuffer();
+        const workbook = read(buffer, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = utils.sheet_to_json(worksheet) as any[];
+
+        const sessionsPayload = json.map(row => ({
+           title: row.title || row.Title || "Untitled Session",
+           description: row.description || row.Description || "",
+           day: Number(row.day || row.Day || 1),
+           startsAt: row.startsAt || row.StartsAt || new Date().toISOString(),
+           endsAt: row.endsAt || row.EndsAt || new Date().toISOString(),
+           room: row.room || row.Room || "",
+           track: (row.track || row.Track || "plenary").toLowerCase(),
+           type: row.type || row.Type || "Session",
+           audience: row.audience || row.Audience || "",
+        }));
+        
+        bulkCreate.mutate(sessionsPayload as any);
+      } catch (err) {
+        console.error("Failed to parse file", err);
+      }
+      e.target.value = "";
+    };
 
     const days =[...new Set((sessions ?? []).map((s) => s.day))].sort();
 
@@ -42,12 +74,28 @@ export default function SessionsPage(){
             Agenda control — status changes go live to delegates instantly.
           </p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setCreating(true); }}
-          className="flex items-center gap-2 rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white transition-opacity hover:opacity-90"
-        >
-          <Plus className="size-4" /> New session
-        </button>
+        <div className="flex items-center gap-3">
+          <input
+            type="file"
+            accept=".xlsx, .xls, .csv"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={bulkCreate.isPending}
+            className="flex items-center gap-2 rounded-[20px] bg-summit-violet px-4 py-2 text-sm text-summit-lilac transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            <Upload className="size-4" /> {bulkCreate.isPending ? "Uploading..." : "Bulk upload"}
+          </button>
+          <button
+            onClick={() => { setEditing(null); setCreating(true); }}
+            className="flex items-center gap-2 rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white transition-opacity hover:opacity-90"
+          >
+            <Plus className="size-4" /> New session
+          </button>
+        </div>
       </header>
 
       {(creating || editing) && (
