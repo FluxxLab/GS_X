@@ -11,7 +11,6 @@ import {
   useBulkCreateSessions,
   type Session,
   type SessionStatus,
-  type SessionStatus,
 } from "@/lib/summit/sessions";
 import { SessionForm } from "@/app/(summit)/_components/SessionForm";
 import {
