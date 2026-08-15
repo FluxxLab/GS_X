@@ -14,11 +14,11 @@ export interface LiveOpsSession {
   viewers: number;
   captionListeners: number;
   capturing: boolean; // audio feed alive within the last 30s (Redis heartbeat)
+  flags: BroadcastFlags;
 }
 
 export interface LiveOpsOverview {
   sessions: LiveOpsSession[];
-  flags: BroadcastFlags;
 }
 
 export function useLiveOpsOverview(){
@@ -32,10 +32,10 @@ export function useLiveOpsOverview(){
 export function useCutToBreak(){
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (active: boolean) => 
+        mutationFn: (input: { sessionId: string; active: boolean }) => 
             api<BroadcastFlags>("/live-ops/cut-to-break",{
                 method: "POST",
-                body: JSON.stringify({active}),
+                body: JSON.stringify(input),
             }),
             onSuccess: () => qc.invalidateQueries({queryKey: ["live-ops"]}),
     });
@@ -44,8 +44,8 @@ export function useCutToBreak(){
 export function useSetOverlays(){
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (input: {captions?: boolean; signLanguage?: boolean}) =>
-            api<BroadcastFlags>("/live-ops/overlays",{
+        mutationFn: (input: {sessionId: string; captions?: boolean; signLanguage?: boolean}) =>
+            api<BroadcastFlags>("/live-ops/set-overlays",{
                 method: "POST",
                 body: JSON.stringify(input),
             }),

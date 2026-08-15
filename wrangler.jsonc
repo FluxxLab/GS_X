@@ -11,6 +11,12 @@
   },
   "observability": {
     "enabled": true
+  },
+  "vars": {
+    "NEXT_PUBLIC_API_BASE_URL": "https://18-175-94-245.sslip.io/api/v1",
+    "API_BASE_URL": "https://18-175-94-245.sslip.io/api/v1",
+    "ACCESS_COOKIE": "gs26.access",
+    "REFRESH_COOKIE": "gs26.refresh"
   }
   // Incremental cache (ISR/data cache) is optional and needs an R2 bucket:
   // create one, then add here and reference it from open-next.config.ts:
