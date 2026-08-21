@@ -18,6 +18,12 @@ export interface TranscriptSegment {
   room: string;
   text: string;
   source: "ai" | "human";
+  /**
+   * Diarised voice index from the transcription provider, 0-based, or null
+   * when it could not attribute the segment. A voice within one capture run,
+   * not a person: the numbering restarts whenever the room's stream reopens.
+   */
+  speaker: number | null;
   createdAt: string;
 }
 

@@ -215,6 +215,11 @@ function TranscriptTab({ sessionId, title }: { sessionId: string; title: string 
               <span className="w-20 shrink-0 text-xs text-summit-smoke">
                 {new Date(s.createdAt).toLocaleTimeString("en-GB")}
               </span>
+              {s.speaker !== null && s.speaker !== undefined && (
+                <span className="w-20 shrink-0 text-xs text-summit-lilac">
+                  Speaker {s.speaker + 1}
+                </span>
+              )}
               <p className="min-w-0">
                 {s.text}
                 {s.source === "ai" && (
