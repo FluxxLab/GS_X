@@ -29,6 +29,20 @@ try {
   // leave the raw value if it isn't a parseable URL
 }
 
+// LiveKit Cloud is a third origin the browser reaches directly, because the
+// /capture page has to originate the room audio itself. Only the host is
+// public here; the API key and secret stay on the backend, and the browser
+// only ever holds a short-lived publish-only token minted by the API.
+const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || "";
+let livekitOrigins = "";
+try {
+  const { host } = new URL(livekitUrl);
+  // wss for the signal socket, https for the cloud region/validate calls
+  livekitOrigins = `wss://${host} https://${host}`;
+} catch {
+  // not configured; capture still runs captions-only
+}
+
 /**
  * Content-Security-Policy. helmet covers the API responses; this is the
  * defence-in-depth layer for the Next-served HTML and assets.
@@ -48,7 +62,7 @@ const csp = [
   `img-src 'self' data: blob: https://i.ytimg.com ${apiOrigin}`,
   
   `font-src 'self' data:`,
-    `connect-src 'self' ${apiOrigin} ${apiOrigin.replace(/^http/, "ws")}${isDev ? " ws: wss:" : ""}`,
+  `connect-src 'self' ${apiOrigin} ${apiOrigin.replace(/^http/, "ws")} ${livekitOrigins}${isDev ? " ws: wss:" : ""}`,
 
   // Without this, default-src 'self' refuses the YouTube player outright.
   // Scoped to the one host that needs it, and to the -nocookie origin: the
