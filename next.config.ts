@@ -13,7 +13,15 @@ const isDev = process.env.NODE_ENV !== "production";
 // The backend API is a separate origin (different host/port), so it must be
 // explicitly allow-listed in connect-src / img-src or every fetch and
 // backend-served image (avatars, uploads under /public) is blocked by the CSP.
-const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+// Public, non-secret origins, defaulted in code on purpose: this file is
+// evaluated at BUILD time and the CSP is frozen into the OpenNext middleware
+// bundle. Cloudflare's runtime variables arrive long after that, so an
+// env-only setup silently ships `connect-src 'self'` and blocks LiveKit.
+// Override per environment with build-time env vars.
+const API_URL_FALLBACK = "https://18-175-94-245.sslip.io/api/v1";
+const LIVEKIT_URL_FALLBACK = "wss://gender-summit-3yzvts9i.livekit.cloud";
+
+const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || API_URL_FALLBACK;
 let apiOrigin = apiUrl;
 /** Same origin, in the shape next/image's remotePatterns wants. */
 let apiImageHost: { protocol: "http" | "https"; hostname: string; port?: string } | null = null;
@@ -33,7 +41,7 @@ try {
 // /capture page has to originate the room audio itself. Only the host is
 // public here; the API key and secret stay on the backend, and the browser
 // only ever holds a short-lived publish-only token minted by the API.
-const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || "";
+const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || LIVEKIT_URL_FALLBACK;
 let livekitOrigins = "";
 try {
   const { host } = new URL(livekitUrl);
