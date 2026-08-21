@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     SessionInput,
   TRACKS,
   useCreateSession,
+  useSessions,
   useUpdateSession,
   type Session,
   type Track,
@@ -17,6 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+/** `YYYY-MM-DDTHH:mm` in the operator's local time, the only shape a
+ *  datetime-local input accepts. */
+function toLocalInput(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -31,14 +39,54 @@ const inputCls =
         title: session?.title ?? "",
     description: session?.description ?? "",
     day: session?.day ?? 1,
-    startsAt: session?.startsAt?.slice(0, 16) ?? "2026-09-08T09:00",
-    endsAt: session?.endsAt?.slice(0, 16) ?? "2026-09-08T10:00",
+    startsAt: session?.startsAt?.slice(0, 16) ?? "",
+    endsAt: session?.endsAt?.slice(0, 16) ?? "",
     room: session?.room ?? "",
     track: (session?.track ?? "plenary") as Track,
     type: session?.type ?? "Breakout Session",
     audience: session?.audience ?? "",
     });
+  const { data: sessions } = useSessions();
   const { data: speakers } = useSpeakers();
+
+  /**
+   * What date each day number actually maps to, read off the agenda instead
+   * of a hardcoded string, so a label can never contradict the data. `day`
+   * is only a bucket the API caps at 1..2; nothing makes it agree with
+   * startsAt, which is why the label has to follow the real date.
+   */
+  const dayDates = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const s of sessions ?? []) {
+      const seen = m.get(s.day);
+      if (!seen || s.startsAt < seen) m.set(s.day, s.startsAt);
+    }
+    return m;
+  }, [sessions]);
+
+  const dayLabel = (d: number) => {
+    // The day being edited reads from the form, so picking today shows today
+    // rather than being contradicted by the label.
+    const iso = d === Number(form.day) && form.startsAt ? form.startsAt : dayDates.get(d);
+    if (!iso) return `Day ${d}`;
+    const when = new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    return `Day ${d} · ${when}`;
+  };
+
+  // Filled after mount rather than in useState: the server renders in UTC and
+  // the operator's laptop does not, so a date computed during SSR would
+  // hydrate mismatched. New sessions default to the current hour, which is
+  // also what you want when adding a session on the day.
+  useEffect(() => {
+    if (session) return;
+    setForm((f) => {
+      if (f.startsAt) return f;
+      const start = new Date();
+      start.setMinutes(0, 0, 0);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      return { ...f, startsAt: toLocalInput(start), endsAt: toLocalInput(end) };
+    });
+  }, [session]);
   const createSpeaker = useCreateSpeaker();
   const [speakerIds, setSpeakerIds] = useState<string[]>(session?.speakers?.map((s) => s.id) ?? []);
   const [speakerFilter, setSpeakerFilter] = useState("");
@@ -99,8 +147,9 @@ const inputCls =
             <SelectValue placeholder="Day" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="1">Day 1 — 8 Sept</SelectItem>
-            <SelectItem value="2">Day 2 — 9 Sept</SelectItem>
+            {[1, 2].map((d) => (
+              <SelectItem key={d} value={d.toString()}>{dayLabel(d)}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <input className={inputCls} type="datetime-local" required value={form.startsAt} onChange={(e) => set("startsAt", e.target.value)} />
