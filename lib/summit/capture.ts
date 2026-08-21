@@ -7,10 +7,17 @@ import { getSocket, joinRoom, leaveRoom } from "./socket";
 
 export type CaptureState = "idle" | "starting" | "capturing" | "error";
 
+/** Milliseconds of continuous quiet before the UI calls the mic dead. */
+const SILENCE_HOLD_MS = 4000;
+/** Normalised level (0..1 over a -60 dBFS floor) that counts as speech. */
+const SIGNAL_FLOOR = 0.2;
+
 interface CaptureResources {
   stream: MediaStream;
   recorder: MediaRecorder;
   audioCtx: AudioContext;
+  source: MediaStreamAudioSourceNode;
+  analyser: AnalyserNode;
   raf: number;
   livekit: Room | null;
 }
@@ -19,8 +26,11 @@ export function useCapture(roomName: string | null) {
   const [state, setState] = useState<CaptureState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
+  const [signal, setSignal] = useState(true);
   const [livekitOk, setLivekitOk] = useState<boolean | null>(null);
+  const [livekitError, setLivekitError] = useState<string | null>(null);
   const res = useRef<CaptureResources | null>(null);
+  const lastSoundRef = useRef(0);
 
   const stop = useCallback(async () => {
     const r = res.current;
@@ -29,13 +39,17 @@ export function useCapture(roomName: string | null) {
       cancelAnimationFrame(r.raf);
       if (r.recorder.state !== "inactive") r.recorder.stop();
       r.stream.getTracks().forEach((t) => t.stop());
+      r.source.disconnect();
+      r.analyser.disconnect();
       await r.audioCtx.close().catch(() => {});
       await r.livekit?.disconnect().catch(() => {});
     }
     if (roomName) leaveRoom("capture:start", "caption:stop", roomName);
     setState("idle");
     setLevel(0);
+    setSignal(true);
     setLivekitOk(null);
+    setLivekitError(null);
   }, [roomName]);
 
   const start = useCallback(async () => {
@@ -50,7 +64,7 @@ export function useCapture(roomName: string | null) {
       const socket = await getSocket();
 
       // capture:start goes through the room registry so it is REPLAYED after
-      // socket reconnects — the backend keeps captureRoom in per-connection
+      // socket reconnects. The backend keeps captureRoom in per-connection
       // state that a drop wipes.
       await joinRoom("capture:start", roomName);
 
@@ -62,19 +76,44 @@ export function useCapture(roomName: string | null) {
 
       // level meter
       const audioCtx = new AudioContext();
+      // Constructed several awaits after the click, so it is outside the
+      // activation window and can come up suspended.
+      await audioCtx.resume();
+
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      audioCtx.createMediaStreamSource(stream).connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.6;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      // Anchor the graph. An analyser with no route to the destination has
+      // nothing keeping it alive, and Chrome collects the source node with
+      // it, which silently freezes the meter while capture keeps running.
+      const silent = audioCtx.createGain();
+      silent.gain.value = 0;
+      analyser.connect(silent);
+      silent.connect(audioCtx.destination);
+
+      const data = new Float32Array(analyser.fftSize);
+      lastSoundRef.current = performance.now();
+
       const tick = () => {
-        analyser.getByteTimeDomainData(data);
-        let peak = 0;
-        for (const v of data) peak = Math.max(peak, Math.abs(v - 128) / 128);
-        setLevel(peak);
+        analyser.getFloatTimeDomainData(data);
+        let sum = 0;
+        for (const v of data) sum += v * v;
+        const rms = Math.sqrt(sum / data.length);
+        // dBFS against a -60 floor, so a room mic still reads usefully
+        const db = 20 * Math.log10(rms || 1e-8);
+        const norm = Math.max(0, Math.min(1, (db + 60) / 60));
+        setLevel(norm);
+        const now = performance.now();
+        if (norm > SIGNAL_FLOOR) lastSoundRef.current = now;
+        setSignal(now - lastSoundRef.current < SILENCE_HOLD_MS);
         if (res.current) res.current.raf = requestAnimationFrame(tick);
       };
 
-      // Phase A dual-publish to LiveKit — best-effort: captions keep working
+      // Phase A dual-publish to LiveKit, best-effort: captions keep working
       // even if remote listening fails.
       let livekit: Room | null = null;
       try {
@@ -86,11 +125,13 @@ export function useCapture(roomName: string | null) {
         await livekit.connect(url, token);
         await livekit.localParticipant.publishTrack(stream.getAudioTracks()[0]);
         setLivekitOk(true);
-      } catch {
+        setLivekitError(null);
+      } catch (e) {
+        setLivekitError((e as Error).message);
         setLivekitOk(false);
       }
 
-      res.current = { stream, recorder, audioCtx, raf: 0, livekit };
+      res.current = { stream, recorder, audioCtx, source, analyser, raf: 0, livekit };
       res.current.raf = requestAnimationFrame(tick);
       setState("capturing");
     } catch (e) {
@@ -108,5 +149,5 @@ export function useCapture(roomName: string | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { state, error, level, livekitOk, start, stop };
+  return { state, error, level, signal, livekitOk, livekitError, start, stop };
 }

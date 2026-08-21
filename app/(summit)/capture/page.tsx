@@ -24,7 +24,8 @@ interface CaptionEvent {
 export default function CapturePage() {
   const { data: sessions } = useSessions();
   const [room, setRoom] = useState("");
-  const { state, error, level, livekitOk, start, stop } = useCapture(room || null);
+  const { state, error, level, signal, livekitOk, livekitError, start, stop } =
+    useCapture(room || null);
 
   const rooms = [...new Set((sessions ?? []).map((s) => s.room))].sort();
   const liveHere = (sessions ?? []).find((s) => s.room === room && s.status === "live") ?? null;
@@ -69,7 +70,7 @@ export default function CapturePage() {
           Capture
         </h1>
         <p className="mt-1 text-sm text-summit-smoke">
-          Room audio → live captions &amp; remote listening. Run this on the room laptop.
+          Room audio to live captions and remote listening. Run this on the room laptop.
         </p>
       </header>
 
@@ -80,10 +81,10 @@ export default function CapturePage() {
           onValueChange={(val) => setRoom(val === "none" ? "" : val)}
         >
           <SelectTrigger className="w-72 rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac focus:border-summit-cerise">
-            <SelectValue placeholder="Pick this laptop&apos;s room…" />
+            <SelectValue placeholder="Pick this laptop&apos;s room" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Pick this laptop&apos;s room…</SelectItem>
+            <SelectItem value="none">Pick this laptop&apos;s room</SelectItem>
             {rooms.map((r) => (
               <SelectItem key={r} value={r}>{r}</SelectItem>
             ))}
@@ -92,7 +93,7 @@ export default function CapturePage() {
 
         {room && !liveHere && (
           <p className="text-sm text-summit-cream">
-            Nothing is live in {room} right now — audio is captured but caption fragments are
+            Nothing is live in {room} right now. Audio is captured, but caption fragments are
             dropped until a session here goes live.
           </p>
         )}
@@ -112,20 +113,20 @@ export default function CapturePage() {
             )}
           >
             {capturing ? <Square className="size-4" /> : <Mic className="size-4" />}
-            {state === "starting" ? "Starting…" : capturing ? "Stop capture" : "Start capture"}
+            {state === "starting" ? "Starting" : capturing ? "Stop capture" : "Start capture"}
           </button>
 
           <div className="h-3 w-56 overflow-hidden rounded-full bg-white/10">
             <div
-              style={{ width: `${Math.min(100, level * 140)}%` }}
+              style={{ width: `${Math.min(100, level * 100)}%` }}
               className={cn(
                 "h-full rounded-full transition-[width] duration-75",
-                level > 0.02 ? "bg-summit-green" : "bg-summit-smoke/40",
+                signal ? "bg-summit-green" : "bg-summit-smoke/40",
               )}
             />
           </div>
-          {capturing && level <= 0.02 && (
-            <span className="text-xs text-summit-cream">No signal — check the mic</span>
+          {capturing && !signal && (
+            <span className="text-xs text-summit-cream">No signal for 4s. Check the mic.</span>
           )}
         </div>
 
@@ -134,10 +135,14 @@ export default function CapturePage() {
             ● captions {capturing ? "streaming" : "off"}
           </span>
           <span className={cn(livekitOk === true && "text-summit-green", livekitOk === false && "text-summit-cream")}>
-            ● remote audio {livekitOk === null ? "—" : livekitOk ? "publishing" : "failed (captions unaffected)"}
+            ● remote audio{" "}
+            {livekitOk === null ? "idle" : livekitOk ? "publishing" : "failed, captions unaffected"}
           </span>
         </div>
 
+        {livekitOk === false && livekitError && (
+          <p className="text-xs text-summit-smoke">Remote audio: {livekitError}</p>
+        )}
         {error && <p className="text-sm text-summit-cream">{error}</p>}
       </div>
 
