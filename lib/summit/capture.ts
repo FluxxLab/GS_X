@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Room } from "livekit-client";
 import { api } from "./api";
-import { getSocket, joinRoom, leaveRoom } from "./socket";
+import { getSocket, joinRoomWithAck, leaveRoom } from "./socket";
 
 export type CaptureState = "idle" | "starting" | "capturing" | "error";
 
@@ -66,7 +66,22 @@ export function useCapture(roomName: string | null) {
       // capture:start goes through the room registry so it is REPLAYED after
       // socket reconnects. The backend keeps captureRoom in per-connection
       // state that a drop wipes.
-      await joinRoom("capture:start", roomName);
+      //
+      // Waiting for the ack matters: the recorder's first chunk carries the
+      // WebM header, and if it is emitted before the room's transcription
+      // stream exists it is discarded, leaving Deepgram with undecodable
+      // audio for the rest of the session.
+      const ack = await joinRoomWithAck<{ capturing?: string; error?: string }>(
+        "capture:start",
+        roomName,
+      );
+      if (ack?.error) {
+        throw new Error(
+          ack.error === "forbidden"
+            ? "This account is not an admin, so it cannot capture."
+            : ack.error,
+        );
+      }
 
       const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
       recorder.ondataavailable = async (e) => {

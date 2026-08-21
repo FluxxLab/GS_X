@@ -60,6 +60,21 @@ export async function joinRoom(joinEvent: string, payload?: unknown): Promise<vo
   s.emit(joinEvent, payload);
 }
 
+/**
+ * joinRoom, but waits for the gateway's ack. Use it when the caller must not
+ * send data until the server side is ready: audio emitted before the room's
+ * transcription stream exists is dropped on the floor.
+ */
+export async function joinRoomWithAck<T>(
+  joinEvent: string,
+  payload?: unknown,
+  timeoutMs = 15_000,
+): Promise<T> {
+  const s = await getSocket();
+  joinedRooms.set(roomKey(joinEvent, payload), { joinEvent, payload });
+  return (await s.timeout(timeoutMs).emitWithAck(joinEvent, payload)) as T;
+}
+
 export function leaveRoom(joinEvent: string, leaveEvent: string, payload?: unknown): void {
   joinedRooms.delete(roomKey(joinEvent, payload));
   socket?.emit(leaveEvent, payload);
