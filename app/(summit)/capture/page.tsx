@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/summit/sessions";
 import { useCapture } from "@/lib/summit/capture";
 import { getSocket, joinRoom, leaveRoom } from "@/lib/summit/socket";
+import { CAPTION_LANGUAGES, type CaptionLanguageCode } from "@/lib/summit/captions";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,8 @@ interface CaptionEvent {
   sessionId: string;
   text: string;
   isFinal: boolean;
+  language?: string;
+  speaker?: number;
   at: string;
 }
 
@@ -32,24 +35,32 @@ export default function CapturePage() {
 
   const [lines, setLines] = useState<string[]>([]);
   const [interim, setInterim] = useState("");
+  const [language, setLanguage] = useState<CaptionLanguageCode>("en");
 
   useEffect(() => {
     if (!liveHere) return;
     let cancelled = false;
+    // One room per language, so switching means leaving the old one. Clearing
+    // the buffer avoids two languages interleaving in the same panel.
+    const subscription = { sessionId: liveHere.id, language };
+    setLines([]);
+    setInterim("");
+
     const onCaption = (c: CaptionEvent) => {
       if (c.sessionId !== liveHere.id) return;
+      const label = c.speaker === undefined ? "" : `Speaker ${c.speaker + 1}: `;
       if (c.isFinal) {
         setInterim("");
-        setLines((prev) => [...prev.slice(-3), c.text]);
+        setLines((prev) => [...prev.slice(-3), `${label}${c.text}`]);
       } else {
-        setInterim(c.text);
+        setInterim(`${label}${c.text}`);
       }
     };
     getSocket()
       .then((s) => {
         if (cancelled) return;
         s.on("caption", onCaption);
-        void joinRoom("captions:join", liveHere.id);
+        void joinRoom("captions:join", subscription);
       })
       .catch(() => {});
     return () => {
@@ -57,9 +68,9 @@ export default function CapturePage() {
       getSocket()
         .then((s) => s.off("caption", onCaption))
         .catch(() => {});
-      leaveRoom("captions:join", "captions:leave", liveHere.id);
+      leaveRoom("captions:join", "captions:leave", subscription);
     };
-  }, [liveHere?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liveHere?.id, language]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const capturing = state === "capturing";
 
@@ -148,16 +159,39 @@ export default function CapturePage() {
 
       {liveHere && (
         <section className="glass-card p-6">
-          <h2 className="font-[family-name:var(--font-archivo)] text-lg font-bold tracking-[-0.02em]">
-            Caption monitor
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-[family-name:var(--font-archivo)] text-lg font-bold tracking-[-0.02em]">
+              Caption monitor
+            </h2>
+            <div className="flex flex-wrap gap-1">
+              {CAPTION_LANGUAGES.map((l) => (
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => setLanguage(l.code)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs transition-colors",
+                    language === l.code
+                      ? "bg-summit-cerise text-white"
+                      : "bg-summit-lilac/10 text-summit-smoke hover:text-summit-lilac",
+                  )}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="mt-3 flex min-h-24 flex-col gap-1 text-sm">
             {lines.map((l, i) => (
               <p key={i} className="text-summit-lilac">{l}</p>
             ))}
             {interim && <p className="text-summit-smoke italic">{interim}</p>}
             {lines.length === 0 && !interim && (
-              <p className="text-summit-smoke">Captions appear here once speech is detected.</p>
+              <p className="text-summit-smoke">
+                {language === "en"
+                  ? "Captions appear here once speech is detected."
+                  : "Translations arrive a moment after each English final, so this stays empty until a full phrase lands."}
+              </p>
             )}
           </div>
         </section>

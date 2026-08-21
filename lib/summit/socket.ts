@@ -7,8 +7,14 @@ let socket: Socket | null = null;
 let connecting: Promise<Socket> | null = null;
 
 const joinedRooms = new Map<string, { joinEvent: string; payload?: unknown }>();
-const roomKey = (joinEvent: string, payload?: unknown) =>
-  `${joinEvent}|${payload === undefined ? "" : String(payload)}`;
+const roomKey = (joinEvent: string, payload?: unknown) => {
+  if (payload === undefined) return `${joinEvent}|`;
+  // Object payloads (a caption room now carries a language) all stringify to
+  // "[object Object]", which would collide in the registry and make leaving
+  // one subscription drop an unrelated one.
+  const key = typeof payload === "object" ? JSON.stringify(payload) : String(payload);
+  return `${joinEvent}|${key}`;
+};
 
 async function fetchToken(): Promise<string> {
   const res = await fetch("/api/gs26/auth/socket-token");
