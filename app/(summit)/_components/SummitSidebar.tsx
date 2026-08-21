@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import {
   CalendarClock,
   Gamepad2,
+  BookOpen,
   LayoutDashboard,
   LogOut,
   Megaphone,
@@ -34,6 +35,7 @@ const NAV = [
     {href: "/discussions", label: "Discussions", icon: RadioTower},
     { href: "/capture", label: "Capture", icon: Mic },
     { href: "/pitchathon", label: "Pitchathon", icon: Mic2 },
+    { href: "/documents", label: "Documents", icon: BookOpen },
     { href: "/admin", label: "Admin", icon: UsersRound },
 
 

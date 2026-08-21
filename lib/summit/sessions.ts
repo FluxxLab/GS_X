@@ -48,7 +48,7 @@ export function useSessions(){
 export function useCreateSession(){
     const qc = useQueryClient();
     return useMutation<Session, Error, SessionInput>({
-        mutationFn: (input: SessionInput) => api<Session>("/Sessions", {method: "POST", body: JSON.stringify(input)}),
+        mutationFn: (input: SessionInput) => api<Session>("/sessions", {method: "POST", body: JSON.stringify(input)}),
         onSuccess: (data) => qc.invalidateQueries({queryKey: ["sessions"]}),
     });
 }
@@ -65,22 +65,23 @@ export function useUpdateSession(){
     const qc  = useQueryClient();
     return useMutation({
         mutationFn: ({id, ...input}: Partial<SessionInput> & {id: string}) =>
-            api<Session>(`Sessions/${id}`, {method: "PATCH", body: JSON.stringify(input)}),
+            api<Session>(`/sessions/${id}`, {method: "PATCH", body: JSON.stringify(input)}),
         onSuccess: () => qc.invalidateQueries({queryKey: ["sessions"]}),
     });
 }
 
-export function useUpdateSessionStatus(){
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: ({id, status}: {id: string; status: SessionStatus}) => 
-            api<Session>(`/Sessions/${id}`,{
-                method: "PATCH",
-                body: JSON.stringify({status}),
-            }),
-            onSuccess: (data) => qc.invalidateQueries({queryKey: ["sessions"]}),
-    });
+export function useUpdateSessionStatus() {
+  const qc = useQueryClient();
+  return useMutation<Session, Error, { id: string; status: SessionStatus }>({
+    mutationFn: ({ id, status }) =>
+      api<Session>(`/sessions/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sessions"] }),
+  });
 }
+
 
 
     
