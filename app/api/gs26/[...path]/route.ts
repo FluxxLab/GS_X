@@ -51,4 +51,10 @@ async function handle(req: NextRequest, ctx: {params: Promise<{path: string[]}>}
     return res;
 }
 
-export {handle as GET, handle as POST, handle as PUT, handle as DELETE};
+export {
+    handle as GET,
+    handle as POST,
+    handle as PUT,
+    handle as PATCH,
+    handle as DELETE,
+};
