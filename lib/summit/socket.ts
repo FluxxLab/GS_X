@@ -1,7 +1,7 @@
 "use client";
 import { io, type Socket } from "socket.io-client";
 
-const SOCKET_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/api\/v1\/?$/, "");
+import { SOCKET_URL } from "./config";
 
 let socket: Socket | null = null;
 let connecting: Promise<Socket> | null = null;
