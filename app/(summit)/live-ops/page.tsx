@@ -99,12 +99,6 @@ export default function LiveOpsOverview(){
                       pending={setOverlays.isPending}
                       onChange={(v) => setOverlays.mutate({ sessionId: s.id, captions: v })}
                     />
-                    <FlagToggle
-                      label="Sign-language"
-                      checked={s.flags.signLanguageOverlay}
-                      pending={setOverlays.isPending}
-                      onChange={(v) => setOverlays.mutate({ sessionId: s.id, signLanguage: v })}
-                    />
                   </div>
                 </div>
               </article>

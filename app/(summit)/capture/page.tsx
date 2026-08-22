@@ -27,8 +27,15 @@ interface CaptionEvent {
 export default function CapturePage() {
   const { data: sessions } = useSessions();
   const [room, setRoom] = useState("");
+  /**
+   * Streaming diarisation splits a single voice into several when the speaker
+   * moves, laughs, or changes volume, so a keynote reads as a conversation
+   * between two people. The operator knows how many microphones are in the
+   * room; the diariser is guessing.
+   */
+  const [diarise, setDiarise] = useState(true);
   const { state, error, level, signal, livekitOk, livekitError, start, stop } =
-    useCapture(room || null);
+    useCapture(room || null, diarise);
 
   const rooms = [...new Set((sessions ?? []).map((s) => s.room))].sort();
   const liveHere = (sessions ?? []).find((s) => s.room === room && s.status === "live") ?? null;
@@ -101,6 +108,24 @@ export default function CapturePage() {
             ))}
           </SelectContent>
         </Select>
+
+        <label
+          className={cn(
+            "flex w-fit cursor-pointer items-center gap-2 text-xs",
+            capturing || state === "starting"
+              ? "cursor-not-allowed text-summit-smoke/50"
+              : "text-summit-smoke hover:text-summit-lilac",
+          )}
+        >
+          <input
+            type="checkbox"
+            checked={!diarise}
+            disabled={capturing || state === "starting"}
+            onChange={(e) => setDiarise(!e.target.checked)}
+            className="size-3.5 accent-summit-cerise"
+          />
+          One speaker in this room (no speaker labels)
+        </label>
 
         {room && !liveHere && (
           <p className="text-sm text-summit-cream">

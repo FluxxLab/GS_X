@@ -20,6 +20,7 @@ import {
   UsersRound,
   X,
   Zap,
+  MessagesSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/summit/auth";
@@ -33,10 +34,10 @@ const NAV = [
     {href: "/announce", label: "Announce", icon: Megaphone},
     {href: "/security", label: "Security", icon: ShieldAlert},
     {href: "/discussions", label: "Discussions", icon: RadioTower},
+    { href: "/forums", label: "Forums", icon: MessagesSquare },
     { href: "/capture", label: "Capture", icon: Mic },
     { href: "/pitchathon", label: "Pitchathon", icon: Mic2 },
     { href: "/documents", label: "Documents", icon: BookOpen },
-    { href: "/admin", label: "Admin", icon: UsersRound },
 
 
 

@@ -7,7 +7,13 @@ export interface AdminOverview {
   streaming: number;
   viewersPerSession: { sessionsId: string; title: string; viewers: number }[];
   topPitches: {
-    entryId: { id: string; innovatorName: string; country: string; track: string };
+    entry: {
+      id: string;
+      innovatorName: string;
+      country: string;
+      track: string;
+      description: string;
+    };
     voteCount: number;
   }[];
 }

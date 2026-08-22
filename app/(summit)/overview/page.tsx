@@ -85,10 +85,14 @@ export default function Overview(){
             {pitches.length === 0 && (
               <li className="text-sm text-summit-smoke">No votes yet.</li>
             )}
-            {pitches.map((p) => (
-              <li key={p.entryId.id}>
+            {pitches.map((p, i) => (
+              // A malformed row must not take the whole dashboard down with it,
+              // which is what an unguarded read here did.
+              <li key={p.entry?.id ?? i}>
                 <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate font-medium">{p.entryId.innovatorName}</span>
+                  <span className="truncate font-medium">
+                    {p.entry?.innovatorName ?? "Unknown entry"}
+                  </span>
                   <span className="shrink-0 text-summit-smoke">{p.voteCount}</span>
                 </div>
                 <div className="mt-1 h-1 rounded-full bg-white/10">

@@ -22,7 +22,7 @@ interface CaptureResources {
   livekit: Room | null;
 }
 
-export function useCapture(roomName: string | null) {
+export function useCapture(roomName: string | null, diarise = true) {
   const [state, setState] = useState<CaptureState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
@@ -44,13 +44,13 @@ export function useCapture(roomName: string | null) {
       await r.audioCtx.close().catch(() => {});
       await r.livekit?.disconnect().catch(() => {});
     }
-    if (roomName) leaveRoom("capture:start", "caption:stop", roomName);
+    if (roomName) leaveRoom("capture:start", "caption:stop", { room: roomName, diarise });
     setState("idle");
     setLevel(0);
     setSignal(true);
     setLivekitOk(null);
     setLivekitError(null);
-  }, [roomName]);
+  }, [roomName, diarise]);
 
   const start = useCallback(async () => {
     if (!roomName || res.current) return;
@@ -73,7 +73,7 @@ export function useCapture(roomName: string | null) {
       // audio for the rest of the session.
       const ack = await joinRoomWithAck<{ capturing?: string; error?: string }>(
         "capture:start",
-        roomName,
+        { room: roomName, diarise },
       );
       if (ack?.error) {
         throw new Error(
@@ -155,7 +155,7 @@ export function useCapture(roomName: string | null) {
       await stop();
       setState("error");
     }
-  }, [roomName, stop]);
+  }, [roomName, diarise, stop]);
 
   useEffect(() => {
     return () => {
