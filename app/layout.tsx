@@ -45,7 +45,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("antialiased", inter.variable, schoolbell.variable, "font-sans", geist.variable)}>
+    <html
+      lang="en"
+      // The console is dark-only. Without this the shadcn tokens resolve to
+      // their light defaults, which is why Select popovers rendered white:
+      // they portal to document.body, so a class on an inner layout cannot
+      // reach them.
+      className={cn("dark antialiased", inter.variable, schoolbell.variable, "font-sans", geist.variable)}
+    >
       <body className="flex flex-col">
         <QueryProvider>{children}</QueryProvider>
        

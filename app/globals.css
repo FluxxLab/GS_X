@@ -50,9 +50,13 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* min-height, not height: body is a column flex container, so a definite
+ * height lets flex-shrink clamp the page wrapper to one viewport. Its
+ * background then stops mid-scroll and the canvas shows through underneath,
+ * which is what produced the white band below the fold. */
 html,
 body {
-  height: 100%;
+  min-height: 100%;
 }
 
 /* Scrollbars are hidden app-wide (below), so any stray horizontal overflow lets
