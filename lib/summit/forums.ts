@@ -33,6 +33,34 @@ function toQuery(filters: ForumFilters): string {
   return q ? `?${q}` : "";
 }
 
+/**
+ * One row per session thread, including those nobody has posted in yet.
+ * Without this a newly created forum is indistinguishable from one that
+ * failed to save: the comment list shows nothing either way.
+ */
+export interface ForumThread {
+  sessionId: string;
+  title: string;
+  track: string;
+  type: string;
+  room: string;
+  comments: number;
+  flagged: number;
+  hidden: number;
+  lastAt: string | null;
+}
+
+export function useForumThreads() {
+  return useQuery({
+    queryKey: ["forum-threads"],
+    queryFn: async () => {
+      const res = await api<ForumThread[]>("/discussions/threads");
+      return Array.isArray(res) ? res : [];
+    },
+    refetchInterval: 30_000,
+  });
+}
+
 export function useForumComments(filters: ForumFilters) {
   return useQuery({
     queryKey: ["forums", filters],
@@ -54,6 +82,7 @@ export function useHideForumComment() {
     // per-session thread as well.
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["forums"] });
+      void qc.invalidateQueries({ queryKey: ["forum-threads"] });
       void qc.invalidateQueries({ queryKey: ["discussion"] });
     },
   });

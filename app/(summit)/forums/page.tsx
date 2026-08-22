@@ -5,6 +5,7 @@ import { EyeOff, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useForumComments,
+  useForumThreads,
   useHideForumComment,
   type ForumFilters,
   type HiddenFilter,
@@ -23,9 +24,12 @@ const HIDDEN_TABS: { value: HiddenFilter; label: string }[] = [
 export default function ForumsPage() {
   const [filters, setFilters] = useState<ForumFilters>({ hidden: "include" });
   const { data: comments, isLoading, error } = useForumComments(filters);
+  const { data: threads } = useForumThreads();
   const hide = useHideForumComment();
 
   const rows = comments ?? [];
+  const boards = threads ?? [];
+  const selected = boards.find((t) => t.sessionId === filters.sessionId) ?? null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,6 +42,48 @@ export default function ForumsPage() {
           logged as a security event.
         </p>
       </header>
+
+      <section>
+        <h2 className="text-[11px] tracking-[0.1em] text-summit-smoke uppercase">
+          Boards ({boards.length})
+        </h2>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {boards.length === 0 && (
+            <p className="text-sm text-summit-smoke">
+              No sessions yet. Every session is a board, so create one and it appears here.
+            </p>
+          )}
+          {boards.map((t) => (
+            <button
+              key={t.sessionId}
+              type="button"
+              onClick={() =>
+                setFilters((f) => ({
+                  ...f,
+                  sessionId: f.sessionId === t.sessionId ? undefined : t.sessionId,
+                }))
+              }
+              className={cn(
+                "glass-card flex flex-col gap-1 p-3 text-left transition-colors",
+                filters.sessionId === t.sessionId
+                  ? "border border-summit-cerise"
+                  : "hover:border-summit-lilac/30",
+              )}
+            >
+              <span className="truncate text-sm text-summit-lilac">{t.title}</span>
+              <span className="flex flex-wrap gap-2 text-xs text-summit-smoke">
+                <span>{t.track}</span>
+                <span>
+                  {t.comments} comment{t.comments === 1 ? "" : "s"}
+                </span>
+                {t.flagged > 0 && (
+                  <span className="text-summit-cream">{t.flagged} reported</span>
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <div className="glass-card flex flex-wrap items-center gap-3 p-4">
         <button
@@ -63,6 +109,7 @@ export default function ForumsPage() {
         </div>
 
         <span className="ml-auto text-xs text-summit-smoke">
+          {selected ? `${selected.title}: ` : ""}
           {rows.length} comment{rows.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -76,7 +123,9 @@ export default function ForumsPage() {
 
       {!isLoading && !error && rows.length === 0 && (
         <div className="glass-card p-5 text-sm text-summit-smoke">
-          Nothing here. Comments appear once delegates post in a session thread.
+          {selected
+            ? `No comments in "${selected.title}" yet.`
+            : "Nothing here yet. Boards are listed above; comments appear once delegates post from the app."}
         </div>
       )}
 
