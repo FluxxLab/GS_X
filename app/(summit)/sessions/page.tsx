@@ -56,7 +56,10 @@ export default function SessionsPage(){
            startsAt: row.startsAt || row.StartsAt || new Date().toISOString(),
            endsAt: row.endsAt || row.EndsAt || new Date().toISOString(),
            room: row.room || row.Room || "",
-           track: (row.track || row.Track || "plenary").toLowerCase(),
+           // Left blank when a row omits it: the API rejects an unknown track
+           // with a 400, which is better than silently filing it under one
+           // the uploader never chose.
+           track: (row.track || row.Track || "").toLowerCase(),
            type: row.type || row.Type || "Session",
            audience: row.audience || row.Audience || "",
         }));

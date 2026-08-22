@@ -43,7 +43,7 @@ const inputCls =
     startsAt: session?.startsAt?.slice(0, 16) ?? "",
     endsAt: session?.endsAt?.slice(0, 16) ?? "",
     room: session?.room ?? "",
-    track: (session?.track ?? "plenary") as Track,
+    track: (session?.track ?? "") as Track,
     type: session?.type ?? "Breakout Session",
     audience: session?.audience ?? "",
     });
@@ -78,6 +78,13 @@ const inputCls =
   // the operator's laptop does not, so a date computed during SSR would
   // hydrate mismatched. New sessions default to the current hour, which is
   // also what you want when adding a session on the day.
+  // The track list is server-owned, so the first option is only known once it
+  // arrives. Without this a new session would submit an empty track and 400.
+  useEffect(() => {
+    if (form.track || tracks.length === 0) return;
+    setForm((f) => (f.track ? f : { ...f, track: tracks[0].value }));
+  }, [tracks, form.track]);
+
   useEffect(() => {
     if (session) return;
     setForm((f) => {

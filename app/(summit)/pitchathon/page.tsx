@@ -19,7 +19,7 @@ const inputCls =
 const EMPTY = {
   innovatorName: "",
   country: "",
-  track: "innovation" as Track,
+  track: "" as Track,
   description: "",
 };
 
