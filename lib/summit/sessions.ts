@@ -1,16 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 
-export const TRACKS = [
-  "plenary",
-  "gbv",
-  "health",
-  "economic",
-  "innovation",
-  "digital",
-  "youth",
-] as const;
-export type Track = (typeof TRACKS)[number];
+/**
+ * Tracks come from the API, never from a copy here.
+ *
+ * The database enum is what actually accepts or rejects a value, so a
+ * hardcoded list in a client can only ever be right by luck - and this app,
+ * the delegate app and the API had already drifted into three different
+ * lists, two of which contained tracks the column would reject outright.
+ */
+export interface TrackOption {
+  value: string;
+  label: string;
+}
+
+/** Widened to string on purpose: the set is server-owned, so the compiler
+ *  cannot know it, and pretending otherwise is what caused the drift. */
+export type Track = string;
+
+export function useTracks() {
+  return useQuery({
+    queryKey: ["tracks"],
+    queryFn: async () => {
+      const res = await api<TrackOption[]>("/sessions/tracks");
+      return Array.isArray(res) ? res : [];
+    },
+    // The enum only changes with a migration, so this never needs refetching
+    // within a session.
+    staleTime: Infinity,
+  });
+}
 
 export const SESSION_STATUSES = ["scheduled", "live", "completed"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];

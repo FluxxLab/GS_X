@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TRACKS, type Track } from "@/lib/summit/sessions";
+import { useTracks, type Track } from "@/lib/summit/sessions";
 import { usePitchEntries, useCreatePitchEntry } from "@/lib/summit/voting";
 import {
   Select,
@@ -26,6 +26,7 @@ const EMPTY = {
 const MEDALS = ["text-summit-cream", "text-summit-smoke", "text-summit-cerise"];
 
 export default function PitchathonPage() {
+  const { data: tracks = [] } = useTracks();
   const { data: entries, isLoading, error } = usePitchEntries();
   const create = useCreatePitchEntry();
   const [showForm, setShowForm] = useState(false);
@@ -91,8 +92,8 @@ export default function PitchathonPage() {
                 <SelectValue placeholder="Track" />
               </SelectTrigger>
               <SelectContent>
-                {TRACKS.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                {tracks.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -137,7 +138,7 @@ export default function PitchathonPage() {
         >
           all tracks
         </button>
-        {TRACKS.map((t) => (
+        {tracks.map(({ value: t }) => (
           <button
             key={t}
             onClick={() => setTrackFilter(t)}

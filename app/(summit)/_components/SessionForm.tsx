@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
     SessionInput,
-  TRACKS,
+  useTracks,
   useCreateSession,
   useSessions,
   useUpdateSession,
@@ -31,6 +31,7 @@ const inputCls =
 
 
   export function SessionForm({session, onClose}: {session: Session | null, onClose: () => void, }){
+    const { data: tracks = [] } = useTracks();
     const create = useCreateSession();
     const update = useUpdateSession();
     const pending = create.isPending || update.isPending;
@@ -160,8 +161,8 @@ const inputCls =
             <SelectValue placeholder="Track" />
           </SelectTrigger>
           <SelectContent>
-            {TRACKS.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+            {tracks.map((t) => (
+              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -169,8 +170,7 @@ const inputCls =
         <input className={inputCls} placeholder="Audience (optional)" value={form.audience} onChange={(e) => set("audience", e.target.value)} />
       </div>
       {err && <p className="text-sm text-summit-cream">{(err as Error).message}</p>}
-      <div className="flex gap-2">
-              <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <p className="text-[11px] tracking-[0.1em] text-summit-smoke uppercase">
             Speakers ({speakerIds.length})
@@ -248,6 +248,7 @@ const inputCls =
         </div>
       </div>
 
+      <div className="flex items-center gap-2">
         <button type="submit" disabled={pending} className="rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white disabled:opacity-50">
           {pending ? "Saving…" : "Save"}
         </button>

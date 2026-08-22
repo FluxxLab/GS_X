@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Download, Flag, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TRACKS } from "@/lib/summit/sessions";
+import { useTracks } from "@/lib/summit/sessions";
 import {
   GRANTABLE_TIERS,
   TIERS,
@@ -74,6 +74,7 @@ export default function DelegatesPage() {
 }
 
 function Directory() {
+  const { data: tracks = [] } = useTracks();
   const [search, setSearch] = useState("");
   const [tier, setTier] = useState<Tier | "">("");
   const [track, setTrack] = useState("");
@@ -121,8 +122,8 @@ function Directory() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All tracks</SelectItem>
-            {TRACKS.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+            {tracks.map((t) => (
+              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
