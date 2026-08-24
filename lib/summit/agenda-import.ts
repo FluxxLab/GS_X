@@ -1,4 +1,10 @@
 import type { SessionInput } from "./sessions";
+import {
+  findNearDuplicates,
+  parseSpeakerCell,
+  speakerKey,
+  type ParsedSpeaker,
+} from "./agenda-speakers";
 
 /**
  * Turns the published agenda workbook into `SessionInput`s the API will accept.
@@ -141,11 +147,101 @@ export interface AgendaRowError {
   reason: string;
 }
 
+/**
+ * Something the API will happily accept but a summit operator would not.
+ *
+ * Kept separate from `errors`: an error blocks the import because the API
+ * would reject it, a warning only asks a human to look. A session at 01:35
+ * validates perfectly — end is after start — it is just nobody's intention.
+ */
+export interface AgendaWarning {
+  kind: "odd-hour" | "room-clash" | "no-room" | "long-session" | "similar-speaker";
+  message: string;
+}
+
+export interface AgendaRow {
+  /** 1-based spreadsheet row, header included. */
+  row: number;
+  session: SessionInput;
+  speakers: ParsedSpeaker[];
+  /** Entries in the speaker cell that were not people. */
+  skippedSpeakers: string[];
+}
+
 export interface AgendaImport {
+  rows: AgendaRow[];
   sessions: SessionInput[];
   errors: AgendaRowError[];
+  warnings: AgendaWarning[];
+  /** Every distinct person named anywhere in the sheet. */
+  roster: ParsedSpeaker[];
   /** Which agenda date became day 1 and day 2, for the confirmation summary. */
   days: { day: number; date: string; count: number }[];
+}
+
+const hhmm = (iso: string) => iso.slice(11, 16);
+
+/** Checks that need the whole sheet, run once the rows are normalised. */
+function collectWarnings(rows: AgendaRow[], roster: ParsedSpeaker[]): AgendaWarning[] {
+  const out: AgendaWarning[] = [];
+
+  for (const { row, session: s } of rows) {
+    const hour = Number(hhmm(s.startsAt).slice(0, 2));
+    if (hour < 6 || hour >= 22) {
+      out.push({
+        kind: "odd-hour",
+        message: `Row ${row}: "${s.title}" runs ${hhmm(s.startsAt)}–${hhmm(s.endsAt)} — check AM/PM`,
+      });
+    }
+
+    const minutes = (Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 60_000;
+    if (minutes > 180) {
+      out.push({
+        kind: "long-session",
+        message: `Row ${row}: "${s.title}" runs ${Math.round(minutes / 60)}h — confirm that is intended`,
+      });
+    }
+
+    if (s.room === "TBC") {
+      out.push({
+        kind: "no-room",
+        // /capture and the captions pipeline are keyed on room, so this is not
+        // cosmetic: a session in "TBC" cannot be captured.
+        message: `Row ${row}: "${s.title}" has no room — it cannot be captioned until one is set`,
+      });
+    }
+  }
+
+  // Two sessions in one room at one time means captions cannot be attributed.
+  const byRoom = new Map<string, AgendaRow[]>();
+  for (const r of rows) {
+    if (r.session.room === "TBC") continue;
+    const k = `${r.session.day}|${r.session.room}`;
+    (byRoom.get(k) ?? byRoom.set(k, []).get(k)!).push(r);
+  }
+  for (const [k, list] of byRoom) {
+    list.sort((a, b) => a.session.startsAt.localeCompare(b.session.startsAt));
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1].session;
+      const cur = list[i].session;
+      if (cur.startsAt < prev.endsAt) {
+        const room = k.split("|")[1];
+        out.push({
+          kind: "room-clash",
+          message: `${room} day ${cur.day}: "${prev.title}" (${hhmm(prev.startsAt)}–${hhmm(prev.endsAt)}) overlaps "${cur.title}" (${hhmm(cur.startsAt)}–${hhmm(cur.endsAt)})`,
+        });
+      }
+    }
+  }
+
+  for (const [a, b] of findNearDuplicates(roster.map((p) => p.name))) {
+    out.push({
+      kind: "similar-speaker",
+      message: `"${a}" and "${b}" may be the same person spelled two ways`,
+    });
+  }
+
+  return out;
 }
 
 export function normaliseAgenda(rows: Record<string, unknown>[]): AgendaImport {
@@ -172,7 +268,7 @@ export function normaliseAgenda(rows: Record<string, unknown>[]): AgendaImport {
 
   const dayOf = new Map(dates.map((d, i) => [d, i + 1]));
 
-  const sessions: SessionInput[] = [];
+  const out: AgendaRow[] = [];
   const errors: AgendaRowError[] = [];
 
   parsed.forEach((r, i) => {
@@ -207,29 +303,53 @@ export function normaliseAgenda(rows: Record<string, unknown>[]): AgendaImport {
       const description = text(pick(r, "description", "summary"));
       const audience = text(pick(r, "audience"));
 
-      sessions.push({
-        title: title.slice(0, 255),
-        // The column is NOT NULL, and a blank cell would fail at insert rather
-        // than in validation — a 500 mid-batch is far harder to read than a 400.
-        description: description || title,
-        day,
-        startsAt,
-        endsAt,
-        room: text(pick(r, "room", "venue", "location")) || "TBC",
-        track,
-        type: text(pick(r, "type", "sessiontype")).slice(0, 255) || "Session",
-        ...(audience ? { audience: audience.slice(0, 255) } : {}),
+      // The sheet's `organisation` column is a verbatim copy of `speakers` in
+      // 70 of 88 rows, so only the speaker cell is read.
+      const { people, skipped } = parseSpeakerCell(text(pick(r, "speakers", "speaker")));
+
+      out.push({
+        row: rowNo,
+        session: {
+          title: title.slice(0, 255),
+          // The column is NOT NULL, and a blank cell would fail at insert
+          // rather than in validation — a 500 mid-batch is far harder to read
+          // than a 400.
+          description: description || title,
+          day,
+          startsAt,
+          endsAt,
+          room: text(pick(r, "room", "venue", "location")) || "TBC",
+          track,
+          type: text(pick(r, "type", "sessiontype")).slice(0, 255) || "Session",
+          ...(audience ? { audience: audience.slice(0, 255) } : {}),
+        },
+        speakers: people,
+        skippedSpeakers: skipped,
       });
     } catch (e) {
       errors.push({ row: rowNo, title: title || "(untitled)", reason: (e as Error).message });
     }
   });
 
+  // One record per person, first spelling wins; the near-duplicate warning
+  // catches the rest rather than merging them silently.
+  const roster: ParsedSpeaker[] = [];
+  const seenSpeaker = new Set<string>();
+  for (const r of out) {
+    for (const p of r.speakers) {
+      const k = speakerKey(p.name);
+      if (seenSpeaker.has(k)) continue;
+      seenSpeaker.add(k);
+      roster.push(p);
+    }
+  }
+
+  const sessions = out.map((r) => r.session);
   const days = dates.slice(0, 2).map((date, i) => ({
     day: i + 1,
     date,
     count: sessions.filter((s) => s.day === i + 1).length,
   }));
 
-  return { sessions, errors, days };
+  return { rows: out, sessions, errors, warnings: collectWarnings(out, roster), roster, days };
 }

@@ -8,11 +8,13 @@ import {
   SESSION_STATUSES,
   useSessions,
   useUpdateSessionStatus,
-  useBulkCreateSessions,
   type Session,
   type SessionStatus,
 } from "@/lib/summit/sessions";
 import { normaliseAgenda, type AgendaImport } from "@/lib/summit/agenda-import";
+import { speakerKey } from "@/lib/summit/agenda-speakers";
+import { useApplyAgenda } from "@/lib/summit/agenda-apply";
+import { useSpeakers } from "@/lib/summit/speakers";
 import { SessionForm } from "@/app/(summit)/_components/SessionForm";
 import {
   Select,
@@ -34,8 +36,9 @@ function fmtTime(iso: string) {
 
 export default function SessionsPage(){
     const {data: sessions, isLoading, error} = useSessions();
+    const { data: knownSpeakers } = useSpeakers();
     const updateStatus = useUpdateSessionStatus();
-    const bulkCreate = useBulkCreateSessions();
+    const apply = useApplyAgenda();
     const [editing, setEditing] = useState<Session | null>(null);
     const [creating, setCreating] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +48,11 @@ export default function SessionsPage(){
      *  duplicates them. The operator sees the whole thing first. */
     const [staged, setStaged] = useState<(AgendaImport & { fileName: string }) | null>(null);
     const [parseError, setParseError] = useState<string | null>(null);
+    /** Roster entries ticked for creation. The parser is a heuristic over free
+     *  text, so the operator gets the final say on who becomes a speaker
+     *  record rather than discovering the mistakes in the delegate app. */
+    const [chosen, setChosen] = useState<Set<string>>(new Set());
+    const [showRoster, setShowRoster] = useState(false);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -65,7 +73,13 @@ export default function SessionsPage(){
           defval: "",
         });
         if (rows.length === 0) throw new Error("the first sheet has no rows");
-        setStaged({ ...normaliseAgenda(rows), fileName: file.name });
+        const parsed = normaliseAgenda(rows);
+        setStaged({ ...parsed, fileName: file.name });
+        // Everyone the parser is confident about starts ticked; the operator
+        // unticks rather than hunts.
+        setChosen(new Set(parsed.roster.map((p) => speakerKey(p.name))));
+        setShowRoster(false);
+        apply.reset();
       } catch (err) {
         setParseError((err as Error).message);
       }
@@ -73,9 +87,36 @@ export default function SessionsPage(){
 
     const confirmImport = async () => {
       if (!staged || staged.errors.length > 0) return;
-      await bulkCreate.mutateAsync(staged.sessions);
+      await apply.mutateAsync({
+        rows: staged.rows,
+        existing: sessions ?? [],
+        knownSpeakers: knownSpeakers ?? [],
+        selected: chosen,
+      });
       setStaged(null);
     };
+
+    const toggleSpeaker = (key: string) =>
+      setChosen((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+
+    /** How many rows are already in the database, so the button can say
+     *  whether this run will create sessions or only attach speakers. */
+    const existingKeys = new Set(
+      (sessions ?? []).map((s) => `${s.title.trim().toLowerCase()}|${Date.parse(s.startsAt)}`),
+    );
+    const newRows = staged
+      ? staged.rows.filter(
+          (r) =>
+            !existingKeys.has(
+              `${r.session.title.trim().toLowerCase()}|${Date.parse(r.session.startsAt)}`,
+            ),
+        ).length
+      : 0;
 
     const days =[...new Set((sessions ?? []).map((s) => s.day))].sort();
 
@@ -100,10 +141,10 @@ export default function SessionsPage(){
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={bulkCreate.isPending}
+            disabled={apply.isPending}
             className="flex items-center gap-2 rounded-[20px] bg-summit-violet px-4 py-2 text-sm text-summit-lilac transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            <Upload className="size-4" /> {bulkCreate.isPending ? "Uploading..." : "Bulk upload"}
+            <Upload className="size-4" /> {apply.isPending ? "Importing…" : "Import agenda"}
           </button>
           <button
             onClick={() => { setEditing(null); setCreating(true); }}
@@ -161,22 +202,100 @@ export default function SessionsPage(){
             </div>
           )}
 
-          {bulkCreate.error && (
+          {staged.warnings.length > 0 && (
+            <details className="rounded-xl border border-summit-cerulean/25 bg-summit-cerulean/5 p-3">
+              <summary className="cursor-pointer text-xs tracking-[0.1em] text-summit-cerulean uppercase">
+                {staged.warnings.length} things to check — the API accepts these, a human
+                should look
+              </summary>
+              <ul className="mt-2 flex max-h-56 flex-col gap-1 overflow-y-auto">
+                {staged.warnings.map((w, i) => (
+                  <li key={i} className="text-xs text-summit-smoke">
+                    <span className="text-summit-cerulean">{w.kind}</span> · {w.message}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {staged.roster.length > 0 && (
+            <div className="rounded-xl border border-summit-lilac/15 p-3">
+              <button
+                type="button"
+                onClick={() => setShowRoster((v) => !v)}
+                className="flex w-full items-center justify-between text-left"
+              >
+                <span className="text-xs tracking-[0.1em] text-summit-smoke uppercase">
+                  Speakers · {chosen.size} of {staged.roster.length} selected
+                </span>
+                <span className="text-xs text-summit-cerulean">
+                  {showRoster ? "Hide" : "Review"}
+                </span>
+              </button>
+
+              {showRoster && (
+                <>
+                  <p className="mt-2 text-xs text-summit-smoke">
+                    Read out of the sheet&apos;s free-text speaker column, so this is a
+                    best guess. Untick anything that isn&apos;t a person — unticked names
+                    are not created and not attached to any session.
+                  </p>
+                  <div className="mt-2 flex max-h-64 flex-wrap gap-1.5 overflow-y-auto">
+                    {staged.roster.map((p) => {
+                      const k = speakerKey(p.name);
+                      const on = chosen.has(k);
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => toggleSpeaker(k)}
+                          title={[p.role, p.organisation].filter(Boolean).join(" · ")}
+                          className={cn(
+                            "rounded-full px-3 py-1 text-xs transition-colors",
+                            on
+                              ? "bg-summit-cerise text-white"
+                              : "bg-summit-lilac/10 text-summit-smoke line-through hover:text-summit-lilac",
+                          )}
+                        >
+                          {p.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {apply.error && (
             <p className="text-sm text-summit-cream">
-              Import failed — {(bulkCreate.error as Error).message}. Some rows may already
-              have been created; check the agenda below before retrying.
+              Import failed — {(apply.error as Error).message}
             </p>
           )}
 
-          <div className="flex items-center gap-2">
+          {apply.data && apply.data.failures.length > 0 && (
+            <ul className="flex max-h-32 flex-col gap-1 overflow-y-auto rounded-xl border border-summit-cerise/30 p-3">
+              {apply.data.failures.map((f, i) => (
+                <li key={i} className="text-xs text-summit-cream">
+                  {f.title} — {f.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={confirmImport}
-              disabled={staged.errors.length > 0 || bulkCreate.isPending}
+              disabled={staged.errors.length > 0 || apply.isPending}
               className="rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {bulkCreate.isPending
-                ? "Importing…"
-                : `Import ${staged.sessions.length} sessions`}
+              {apply.isPending
+                ? apply.progress
+                  ? `${apply.progress.phase} ${apply.progress.done}/${apply.progress.total}…`
+                  : "Importing…"
+                : newRows > 0
+                  ? `Import ${newRows} new sessions · ${chosen.size} speakers`
+                  : `Attach ${chosen.size} speakers to ${staged.rows.length} sessions`}
             </button>
             <button
               onClick={() => setStaged(null)}
@@ -184,11 +303,18 @@ export default function SessionsPage(){
             >
               Cancel
             </button>
-            {staged.errors.length > 0 && (
+            {staged.errors.length > 0 ? (
               <p className="text-xs text-summit-smoke">
                 Nothing is sent while any row is unreadable — a half-finished batch
                 can&apos;t be rolled back.
               </p>
+            ) : (
+              newRows === 0 && (
+                <p className="text-xs text-summit-smoke">
+                  Every row already exists, so no session is duplicated — only speakers
+                  are added.
+                </p>
+              )
             )}
           </div>
         </section>

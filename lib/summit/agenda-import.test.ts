@@ -114,3 +114,63 @@ describe('normaliseAgenda', () => {
     expect(r.errors[0].reason).toContain('3 dates');
   });
 });
+
+describe('normaliseAgenda warnings', () => {
+  const kinds = (rows: Record<string, unknown>[]) =>
+    normaliseAgenda(rows).warnings.map((w) => w.kind);
+
+  it('flags a session in the small hours without blocking it', () => {
+    const r = normaliseAgenda([row({ StartAt: '12:05 AM', endsAt: '1:05 AM' })]);
+    expect(r.errors).toEqual([]); // valid to the API
+    expect(r.sessions).toHaveLength(1); // still imported
+    expect(r.warnings.map((w) => w.kind)).toContain('odd-hour');
+  });
+
+  it('flags two sessions overlapping in one room', () => {
+    const w = normaliseAgenda([
+      row({ Title: 'Keynote', room: 'Main Hall', StartAt: '11:00 AM', endsAt: '11:30 AM' }),
+      row({ Title: 'Video', room: 'Main Hall', StartAt: '11:25 AM', endsAt: '11:35 AM' }),
+    ]).warnings;
+    const clash = w.find((x) => x.kind === 'room-clash');
+    expect(clash?.message).toContain('Main Hall');
+    expect(clash?.message).toContain('Keynote');
+  });
+
+  it('does not treat TBC as a room, so unassigned rows never look double-booked', () => {
+    const rows = [
+      row({ Title: 'A', room: '', StartAt: '9:00 AM', endsAt: '10:00 AM' }),
+      row({ Title: 'B', room: '', StartAt: '9:30 AM', endsAt: '10:30 AM' }),
+    ];
+    expect(kinds(rows)).not.toContain('room-clash');
+    expect(kinds(rows).filter((k) => k === 'no-room')).toHaveLength(2);
+  });
+
+  it('flags a session running longer than three hours', () => {
+    expect(kinds([row({ StartAt: '9:30 AM', endsAt: '2:00 PM' })])).toContain('long-session');
+  });
+
+  it('flags two spellings of one speaker', () => {
+    const w = normaliseAgenda([
+      row({ speakers: 'Kemela Okara' }),
+      row({ speakers: 'Kemala Okara', StartAt: '2:00 PM', endsAt: '3:00 PM' }),
+    ]).warnings;
+    expect(w.map((x) => x.kind)).toContain('similar-speaker');
+  });
+
+  it('says nothing about a clean sheet', () => {
+    expect(kinds([row(), row({ StartAt: '2:00 PM', endsAt: '3:00 PM' })])).toEqual([]);
+  });
+});
+
+describe('normaliseAgenda speakers', () => {
+  it('attaches parsed people to their row and rosters them once', () => {
+    const r = normaliseAgenda([
+      row({ speakers: 'Chair: Dr Amina Salihu; Waziri Adio' }),
+      row({ speakers: 'Waziri Adio; PIC Secretariat', StartAt: '2:00 PM', endsAt: '3:00 PM' }),
+    ]);
+    expect(r.rows[0].speakers.map((p) => p.name)).toEqual(['Dr Amina Salihu', 'Waziri Adio']);
+    expect(r.rows[1].skippedSpeakers).toEqual(['PIC Secretariat']);
+    // Waziri Adio is on both rows but is one person.
+    expect(r.roster.map((p) => p.name)).toEqual(['Dr Amina Salihu', 'Waziri Adio']);
+  });
+});
