@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-    SessionInput,
   useTracks,
   useCreateSession,
   useSessions,
@@ -74,7 +73,29 @@ const inputCls =
     return `Day ${d} · ${when}`;
   };
 
-  // Filled after mount rather than in useState: the server renders in UTC and
+  /**
+   * The reverse lookup: which day number a calendar date already belongs to.
+   * Local date, not the UTC slice of the ISO string, so an early-morning
+   * session does not land on the day before.
+   */
+  const dayByDate = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of sessions ?? []) m.set(toLocalInput(new Date(s.startsAt)).slice(0, 10), s.day);
+    return m;
+  }, [sessions]);
+
+  // `day` was a free choice next to `startsAt`, so the two could disagree — a
+  // 9 Sept session filed under Day 1 breaks the mobile agenda tabs and every
+  // day-scoped query. Once the agenda knows which date is which day, the date
+  // decides and the dropdown is only there to bootstrap a day nothing sits on.
+  const derivedDay = form.startsAt ? dayByDate.get(form.startsAt.slice(0, 10)) : undefined;
+  useEffect(() => {
+    if (derivedDay && derivedDay !== Number(form.day)) {
+      setForm((f) => ({ ...f, day: derivedDay }));
+    }
+  }, [derivedDay, form.day]);
+
+  // Filled after moun//t rather than in useState: the server renders in UTC and
   // the operator's laptop does not, so a date computed during SSR would
   // hydrate mismatched. New sessions default to the current hour, which is
   // also what you want when adding a session on the day.
@@ -150,7 +171,11 @@ const inputCls =
       <input className={inputCls} placeholder="Title" required value={form.title} onChange={(e) => set("title", e.target.value)} />
       <textarea className={inputCls} placeholder="Description" rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Select value={form.day.toString()} onValueChange={(val) => set("day", Number(val))}>
+        <Select
+          value={form.day.toString()}
+          disabled={derivedDay !== undefined}
+          onValueChange={(val) => set("day", Number(val))}
+        >
           <SelectTrigger className={inputCls}>
             <SelectValue placeholder="Day" />
           </SelectTrigger>
