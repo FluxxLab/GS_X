@@ -1,0 +1,226 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Mic, Square } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useSessions } from "@/lib/summit/sessions";
+import { useCapture } from "@/lib/summit/capture";
+import { getSocket, joinRoom, leaveRoom } from "@/lib/summit/socket";
+import { CAPTION_LANGUAGES, type CaptionLanguageCode } from "@/lib/summit/captions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface CaptionEvent {
+  sessionId: string;
+  text: string;
+  isFinal: boolean;
+  language?: string;
+  speaker?: number;
+  at: string;
+}
+
+export default function CaptureClient() {
+  const { data: sessions } = useSessions();
+  const [room, setRoom] = useState("");
+  /**
+   * Streaming diarisation splits a single voice into several when the speaker
+   * moves, laughs, or changes volume, so a keynote reads as a conversation
+   * between two people. The operator knows how many microphones are in the
+   * room; the diariser is guessing.
+   */
+  const [diarise, setDiarise] = useState(true);
+  const { state, error, level, signal, livekitOk, livekitError, start, stop } =
+    useCapture(room || null, diarise);
+
+  const rooms = [...new Set((sessions ?? []).map((s) => s.room))].sort();
+  const liveHere = (sessions ?? []).find((s) => s.room === room && s.status === "live") ?? null;
+
+  const [lines, setLines] = useState<string[]>([]);
+  const [interim, setInterim] = useState("");
+  const [language, setLanguage] = useState<CaptionLanguageCode>("en");
+
+  useEffect(() => {
+    if (!liveHere) return;
+    let cancelled = false;
+    // One room per language, so switching means leaving the old one. Clearing
+    // the buffer avoids two languages interleaving in the same panel.
+    const subscription = { sessionId: liveHere.id, language };
+    setLines([]);
+    setInterim("");
+
+    const onCaption = (c: CaptionEvent) => {
+      if (c.sessionId !== liveHere.id) return;
+      const label = c.speaker === undefined ? "" : `Speaker ${c.speaker + 1}: `;
+      if (c.isFinal) {
+        setInterim("");
+        setLines((prev) => [...prev.slice(-3), `${label}${c.text}`]);
+      } else {
+        setInterim(`${label}${c.text}`);
+      }
+    };
+    getSocket()
+      .then((s) => {
+        if (cancelled) return;
+        s.on("caption", onCaption);
+        void joinRoom("captions:join", subscription);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      getSocket()
+        .then((s) => s.off("caption", onCaption))
+        .catch(() => {});
+      leaveRoom("captions:join", "captions:leave", subscription);
+    };
+  }, [liveHere?.id, language]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const capturing = state === "capturing";
+
+  return (
+    <div className="flex flex-col gap-6">
+      <header>
+        <h1 className="font-[family-name:var(--font-archivo)] text-3xl font-bold tracking-[-0.025em]">
+          Capture
+        </h1>
+        <p className="mt-1 text-sm text-summit-smoke">
+          Room audio to live captions and remote listening. Run this on the room laptop.
+        </p>
+      </header>
+
+      <div className="glass-card flex flex-col gap-4 p-6">
+        <Select
+          value={room || "none"}
+          disabled={capturing || state === "starting"}
+          onValueChange={(val) => setRoom(val === "none" ? "" : val)}
+        >
+          <SelectTrigger className="w-72 rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac focus:border-summit-cerise">
+            <SelectValue placeholder="Pick this laptop&apos;s room" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Pick this laptop&apos;s room</SelectItem>
+            {rooms.map((r) => (
+              <SelectItem key={r} value={r}>{r}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <label
+          className={cn(
+            "flex w-fit cursor-pointer items-center gap-2 text-xs",
+            capturing || state === "starting"
+              ? "cursor-not-allowed text-summit-smoke/50"
+              : "text-summit-smoke hover:text-summit-lilac",
+          )}
+        >
+          <input
+            type="checkbox"
+            checked={!diarise}
+            disabled={capturing || state === "starting"}
+            onChange={(e) => setDiarise(!e.target.checked)}
+            className="size-3.5 accent-summit-cerise"
+          />
+          One speaker in this room (no speaker labels)
+        </label>
+
+        {room && !liveHere && (
+          <p className="text-sm text-summit-cream">
+            Nothing is live in {room} right now. Audio is captured, but caption fragments are
+            dropped until a session here goes live.
+          </p>
+        )}
+        {liveHere && (
+          <p className="text-sm text-summit-smoke">
+            Live now: <span className="text-summit-lilac">{liveHere.title}</span>
+          </p>
+        )}
+
+        <div className="flex items-center gap-4">
+          <button
+            onClick={capturing ? () => void stop() : () => void start()}
+            disabled={!room || state === "starting"}
+            className={cn(
+              "flex items-center gap-2 rounded-[20px] px-6 py-3 text-sm text-white transition-opacity hover:opacity-90 disabled:opacity-50",
+              capturing ? "bg-summit-cream text-summit-violet" : "bg-summit-cerise",
+            )}
+          >
+            {capturing ? <Square className="size-4" /> : <Mic className="size-4" />}
+            {state === "starting" ? "Starting" : capturing ? "Stop capture" : "Start capture"}
+          </button>
+
+          <div className="h-3 w-56 overflow-hidden rounded-full bg-white/10">
+            <div
+              style={{ width: `${Math.min(100, level * 100)}%` }}
+              className={cn(
+                "h-full rounded-full transition-[width] duration-75",
+                signal ? "bg-summit-green" : "bg-summit-smoke/40",
+              )}
+            />
+          </div>
+          {capturing && !signal && (
+            <span className="text-xs text-summit-cream">No signal for 4s. Check the mic.</span>
+          )}
+        </div>
+
+        <div className="flex gap-4 text-xs text-summit-smoke">
+          <span className={cn(capturing && "text-summit-green")}>
+            ● captions {capturing ? "streaming" : "off"}
+          </span>
+          <span className={cn(livekitOk === true && "text-summit-green", livekitOk === false && "text-summit-cream")}>
+            ● remote audio{" "}
+            {livekitOk === null ? "idle" : livekitOk ? "publishing" : "failed, captions unaffected"}
+          </span>
+        </div>
+
+        {livekitOk === false && livekitError && (
+          <p className="text-xs text-summit-smoke">Remote audio: {livekitError}</p>
+        )}
+        {error && <p className="text-sm text-summit-cream">{error}</p>}
+      </div>
+
+      {liveHere && (
+        <section className="glass-card p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-[family-name:var(--font-archivo)] text-lg font-bold tracking-[-0.02em]">
+              Caption monitor
+            </h2>
+            <div className="flex flex-wrap gap-1">
+              {CAPTION_LANGUAGES.map((l) => (
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => setLanguage(l.code)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs transition-colors",
+                    language === l.code
+                      ? "bg-summit-cerise text-white"
+                      : "bg-summit-lilac/10 text-summit-smoke hover:text-summit-lilac",
+                  )}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 flex min-h-24 flex-col gap-1 text-sm">
+            {lines.map((l, i) => (
+              <p key={i} className="text-summit-lilac">{l}</p>
+            ))}
+            {interim && <p className="text-summit-smoke italic">{interim}</p>}
+            {lines.length === 0 && !interim && (
+              <p className="text-summit-smoke">
+                {language === "en"
+                  ? "Captions appear here once speech is detected."
+                  : "Translations arrive a moment after each English final, so this stays empty until a full phrase lands."}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
