@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Plus, Upload } from "lucide-react";
+import { Pencil, Plus, Search, Upload, X } from "lucide-react";
 import { read, utils } from "xlsx";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +34,29 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * Matches a session against the search box.
+ *
+ * Deliberately covers more than the title: mid-event an operator is usually
+ * looking for "the one in Acacia" or "Prof. Ichoku's panel", not the exact
+ * name of a session they have never read.
+ */
+function matchesQuery(s: Session, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [
+    s.title,
+    s.room,
+    s.type,
+    s.track,
+    ...(s.speakers?.map((sp) => sp.name) ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(q);
+}
+
 export default function SessionsPage(){
     const {data: sessions, isLoading, error} = useSessions();
     const { data: knownSpeakers } = useSpeakers();
@@ -41,6 +64,10 @@ export default function SessionsPage(){
     const apply = useApplyAgenda();
     const [editing, setEditing] = useState<Session | null>(null);
     const [creating, setCreating] = useState(false);
+    /** Free-text filter over the agenda. Matches title, room, type, track and
+     *  speaker names - an operator looking for a session mid-event knows the
+     *  room or the speaker at least as often as the exact title. */
+    const [query, setQuery] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     /** Parsed workbook awaiting confirmation. Nothing is posted from the file
      *  picker itself: `/sessions/bulk` has no transaction, so a batch that
@@ -118,7 +145,11 @@ export default function SessionsPage(){
         ).length
       : 0;
 
-    const days =[...new Set((sessions ?? []).map((s) => s.day))].sort();
+    const matching = (sessions ?? []).filter((s) => matchesQuery(s, query));
+    /** Only days that still have a match, so a search does not leave behind a
+     *  row of empty day headings. */
+    const days = [...new Set(matching.map((s) => s.day))].sort();
+    const noMatches = query.trim().length > 0 && matching.length === 0;
 
     return (
 <div className="flex flex-col gap-6">
@@ -154,6 +185,35 @@ export default function SessionsPage(){
           </button>
         </div>
       </header>
+
+      {/* Search over the whole agenda. Sits above the day sections so it
+          filters across both days at once - a session an operator is hunting
+          for is often not on the day they are looking at. */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-summit-smoke" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search sessions by title, room, type, track or speaker…"
+          aria-label="Search sessions"
+          className="w-full rounded-[20px] border border-summit-lilac/10 bg-summit-violet/40 py-2.5 pr-10 pl-9 text-sm text-summit-lilac outline-none placeholder:text-summit-smoke focus:border-summit-cerise/40"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            aria-label="Clear search"
+            className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-summit-smoke hover:text-summit-lilac"
+          >
+            <X className="size-4" />
+          </button>
+        )}
+      </div>
+
+      {noMatches && (
+        <div className="glass-card p-5 text-sm text-summit-smoke">
+          No sessions match &ldquo;{query}&rdquo;.
+        </div>
+      )}
 
       {parseError && (
         <div className="glass-card p-5 text-sm text-summit-cream">
@@ -347,17 +407,25 @@ export default function SessionsPage(){
           <ul className="mt-3 flex flex-col divide-y divide-summit-lilac/10">
             {(sessions ?? [])
               .filter((s) => s.day === day)
+              .filter((s) => matchesQuery(s, query))
               .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
               .map((s) => (
                 <li key={s.id} className="flex items-center gap-4 py-3">
                   <span className="w-24 shrink-0 text-sm text-summit-smoke">
                     {fmtTime(s.startsAt)}–{fmtTime(s.endsAt)}
                   </span>
+                  {/* The whole title block opens the editor. It was already
+                      clickable but looked inert - no hover, no cursor, no icon -
+                      so the only way to discover editing was to try. */}
                   <button
                     onClick={() => { setCreating(false); setEditing(s); }}
-                    className="min-w-0 flex-1 text-left"
+                    title="Edit session"
+                    className="group min-w-0 flex-1 cursor-pointer rounded-lg px-2 py-1 text-left transition-colors hover:bg-summit-lilac/5"
                   >
-                    <p className="truncate text-sm font-medium">{s.title}</p>
+                    <p className="flex items-center gap-2 truncate text-sm font-medium">
+                      <span className="truncate">{s.title}</span>
+                      <Pencil className="size-3.5 shrink-0 text-summit-smoke opacity-0 transition-opacity group-hover:opacity-100" />
+                    </p>
                     <p className="text-xs text-summit-smoke">
                       {s.room} · {s.type}
                       {s.speakers?.length ? ` · ${s.speakers.map((sp) => sp.name).join(", ")}` : ""}
