@@ -6,7 +6,7 @@ describe('createEmployeeSchema', () => {
   const valid = {
     firstName: 'John',
     lastName: 'Doe',
-    email: 'john.doe@maizube.com',
+    email: 'john.doe@example.com',
     employeeId: 'EMP-001',
     hireDate: '2026-06-21',
   };

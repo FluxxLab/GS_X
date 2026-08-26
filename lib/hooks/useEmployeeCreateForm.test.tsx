@@ -38,7 +38,7 @@ function fillRequired(result: { current: ReturnType<typeof useEmployeeCreateForm
   act(() => {
     result.current.setField('firstName', 'John');
     result.current.setField('lastName', 'Doe');
-    result.current.setField('email', 'john.doe@maizube.com');
+    result.current.setField('email', 'john.doe@example.com');
     result.current.setField('employeeId', 'EMP-001');
     result.current.setField('hireDate', '2026-06-21');
   });

@@ -83,7 +83,17 @@ export function useCapture(roomName: string | null, diarise = true) {
         );
       }
 
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      /**
+       * Bitrate pinned rather than left to the browser. Chrome's default for
+       * audio-only opus can sit well under 128kbps, and voice separation is
+       * the first thing compression erodes: the streaming diariser tells
+       * voices apart by spectral detail the encoder throws away first. This
+       * is the cheapest lever on the "everyone reads as Speaker 1" problem.
+       */
+      const recorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+        audioBitsPerSecond: 128_000,
+      });
       recorder.ondataavailable = async (e) => {
         if (e.data.size > 0) socket.emit("capture:audio", await e.data.arrayBuffer());
       };

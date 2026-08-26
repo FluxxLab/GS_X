@@ -77,7 +77,7 @@ async function attemptRefresh(): Promise<RefreshResult> {
   // absorbs the race.
   refreshPromise = (async (): Promise<RefreshResult> => {
     if (typeof navigator !== 'undefined' && navigator.locks?.request) {
-      return await navigator.locks.request('maizube-token-refresh', doRefresh);
+      return await navigator.locks.request('gs26-token-refresh', doRefresh);
     }
     return doRefresh();
   })().finally(() => { refreshPromise = null; });
@@ -158,7 +158,7 @@ async function request<T>(path: string, options: RequestOptions = {}, isRetry = 
     // 'unauthorized' — the session is genuinely invalid. Clear and go to
     // the LOGIN page (not "/", which is the marketing homepage).
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('maizube_user');
+      localStorage.removeItem('gs26_user');
       window.location.href = '/login';
     }
   }

@@ -27,12 +27,46 @@ const schoolbell = Schoolbell({
   variable: "--font-schoolbell",
 });
 
+const SITE_NAME = "GS-26 Admin Console";
+const SITE_DESCRIPTION =
+  "Organiser dashboard for the GS-26 Gender & Inclusion Summit 2026";
+
 export const metadata: Metadata = {
-  title: "GS-26 Admin Console",
-  description: "Organiser dashboard for the GS-26 Gender & Inclusion Summit 2026",
+  /**
+   * Absolute URLs for the share card. Open Graph consumers - WhatsApp, Slack,
+   * Twitter - do not resolve relative image paths, so without a base the card
+   * silently falls back to the favicon.
+   */
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://gs-x.pic-policycentre.workers.dev",
+  ),
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "GS-26 Admin" },
   icons: { icon: "/icon-192.png", apple: "/apple-icon.png" },
+  /**
+   * Declared explicitly rather than left to Next's defaults. With no openGraph
+   * block a link unfurl has no image to use and falls back to whatever icon it
+   * can find - which is how the seed repo's branding ended up on the WhatsApp
+   * preview. `app/opengraph-image.png` is picked up by file convention and
+   * emitted as an absolute URL against metadataBase.
+   */
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    locale: "en_NG",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  // An organiser console has nothing to gain from being indexed, and the
+  // login page leaking into search results is a small attack-surface gift.
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

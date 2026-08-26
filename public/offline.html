@@ -3,57 +3,54 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Offline · Maizube Water ERP</title>
+<title>Offline · GS-26 Admin Console</title>
+<link rel="icon" href="/icon-192.png" />
 <style>
+  /* The console is dark-only, so the offline fallback is too — a light page
+     here reads as a different site having taken over. Colours are the summit
+     tokens from globals.css, inlined because this page is served by the
+     service worker with no stylesheet available. */
+  :root {
+    --violet: #090415;
+    --lilac: #f6f4fb;
+    --smoke: #9a94ad;
+    --cerise: #e5259a;
+  }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
   body {
+    margin: 0; min-height: 100vh;
     display: flex; align-items: center; justify-content: center;
-    min-height: 100dvh; padding: 24px;
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-    color: #081340; background: #F4F6FB;
-    -webkit-font-smoothing: antialiased;
+    padding: 24px;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--lilac); background: var(--violet);
   }
   .card {
     width: 100%; max-width: 420px; text-align: center;
-    background: #fff; border: 1px solid #DAE0EF; border-radius: 8px;
-    padding: 40px 32px; box-shadow: 0 8px 24px rgba(8, 19, 64, 0.06);
+    background: rgba(246, 244, 251, 0.04);
+    border: 1px solid rgba(246, 244, 251, 0.12);
+    border-radius: 20px; padding: 40px 32px;
   }
-  .icon {
-    width: 64px; height: 64px; margin: 0 auto 20px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 9999px; background: #EAF9FE; color: #081340;
-  }
-  h1 { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
-  p { font-size: 14px; line-height: 1.6; color: #55608A; margin: 0 0 24px; }
+  img { width: 56px; height: 56px; margin: 0 0 20px; }
+  h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 10px; }
+  p { font-size: 14px; line-height: 1.6; color: var(--smoke); margin: 0 0 24px; }
   button {
-    font: inherit; font-size: 14px; font-weight: 600; color: #fff;
-    background: #081340; border: none; border-radius: 6px;
-    padding: 11px 24px; cursor: pointer;
+    font: inherit; font-size: 14px; font-weight: 600;
+    color: #fff; background: var(--cerise);
+    border: none; border-radius: 20px; padding: 10px 20px; cursor: pointer;
   }
-  button:hover { background: #0d1c5c; }
+  button:hover { opacity: 0.9; }
 </style>
 </head>
 <body>
   <div class="card">
-    <div class="icon" aria-hidden="true">
-      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M1 1l22 22" />
-        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
-        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
-        <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
-        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
-        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-        <line x1="12" y1="20" x2="12.01" y2="20" />
-      </svg>
-    </div>
-    <h1>You're offline</h1>
-    <p>We can't reach the Maizube ERP right now. Check your internet connection. Your work will be here when you reconnect.</p>
-    <button type="button" onclick="location.reload()">Try again</button>
+    <img src="/icon-192.png" alt="" />
+    <h1>You&rsquo;re offline</h1>
+    <p>
+      The GS-26 admin console can&rsquo;t be reached right now. Check your
+      connection &mdash; session status and agenda changes will sync when you
+      reconnect.
+    </p>
+    <button onclick="location.reload()">Try again</button>
   </div>
-  <script>
-    // Auto-recover: reload as soon as the connection returns.
-    window.addEventListener("online", function () { location.reload(); });
-  </script>
 </body>
 </html>

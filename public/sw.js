@@ -1,5 +1,5 @@
 /*
- * Maizube ERP service worker.
+ * GS-26 admin console service worker.
  *
  * Deliberately conservative, because a misbehaving SW is worse than none:
  *  - It ONLY touches same-origin GET requests. The API lives on another origin,
@@ -13,7 +13,7 @@
  * Bump CACHE_VERSION to force old caches out on the next activate.
  */
 const CACHE_VERSION = "v1";
-const STATIC_CACHE = `maizube-static-${CACHE_VERSION}`;
+const STATIC_CACHE = `gs26-static-${CACHE_VERSION}`;
 const PRECACHE = [
   "/offline.html",
   "/icon-192.png",
