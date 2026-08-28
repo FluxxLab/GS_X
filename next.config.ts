@@ -1,132 +1,61 @@
-// Deployment note: main carries the current release (ERP polish, guided tour
-// v3 with nav-derived tips, S3-backed product catalog images). Merged from
-// feature/testimonials for deployment.
 import type { NextConfig } from "next";
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
-// Enables `getCloudflareContext()` (env/bindings) during `next dev` / wrangler
-// dev. No-op in a normal `next build` / production, so it's safe here.
-initOpenNextCloudflareForDev();
-
-const isDev = process.env.NODE_ENV !== "production";
-
-// The backend API is a separate origin (different host/port), so it must be
-// explicitly allow-listed in connect-src / img-src or every fetch and
-// backend-served image (avatars, uploads under /public) is blocked by the CSP.
-// Public, non-secret origins, defaulted in code on purpose: this file is
-// evaluated at BUILD time and the CSP is frozen into the OpenNext middleware
-// bundle. Cloudflare's runtime variables arrive long after that, so an
-// env-only setup silently ships `connect-src 'self'` and blocks LiveKit.
-// Override per environment with build-time env vars.
-const API_URL_FALLBACK = "https://18-175-94-245.sslip.io/api/v1";
-const LIVEKIT_URL_FALLBACK = "wss://gender-summit-3yzvts9i.livekit.cloud";
-
-const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || API_URL_FALLBACK;
-let apiOrigin = apiUrl;
-/** Same origin, in the shape next/image's remotePatterns wants. */
-let apiImageHost: { protocol: "http" | "https"; hostname: string; port?: string } | null = null;
-try {
-  const parsed = new URL(apiUrl);
-  apiOrigin = parsed.origin;
-  apiImageHost = {
-    protocol: parsed.protocol === "https:" ? "https" : "http",
-    hostname: parsed.hostname,
-    ...(parsed.port ? { port: parsed.port } : {}),
-  };
-} catch {
-  // leave the raw value if it isn't a parseable URL
-}
-
-// LiveKit Cloud is a third origin the browser reaches directly, because the
-// /capture page has to originate the room audio itself. Only the host is
-// public here; the API key and secret stay on the backend, and the browser
-// only ever holds a short-lived publish-only token minted by the API.
-const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || LIVEKIT_URL_FALLBACK;
-let livekitOrigins = "";
-try {
-  const { host } = new URL(livekitUrl);
-  // wss for the signal socket, https for the cloud region/validate calls
-  livekitOrigins = `wss://${host} https://${host}`;
-} catch {
-  // not configured; capture still runs captions-only
-}
+const isProd = process.env.NODE_ENV === "production";
 
 /**
- * Content-Security-Policy. helmet covers the API responses; this is the
- * defence-in-depth layer for the Next-served HTML and assets.
- *
- * script/style use 'unsafe-inline' because Next's App Router injects inline
- * hydration scripts and Tailwind injects inline styles; without a nonce-based
- * setup (a middleware change) that's the pragmatic baseline. It still blocks
- * the high-value attacks: external/injected script sources, clickjacking
- * (frame-ancestors), base-tag hijacking, and form exfiltration. Dev loosens
- * script-src/connect-src for Turbopack HMR (eval + websocket).
+ * Where the auth Worker listens during local development (`pnpm dev:worker`).
+ * `next dev` proxies /api/gs26/* there so the dashboard keeps HMR while the
+ * cookie/token handling runs in the same code that ships to Cloudflare.
  */
-const csp = [
-  `default-src 'self'`,
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  `style-src 'self' 'unsafe-inline'`,
-  // i.ytimg.com serves the poster frame for the marketing site's YouTube embed.
-  `img-src 'self' data: blob: https://i.ytimg.com ${apiOrigin}`,
-  
-  `font-src 'self' data:`,
-  `connect-src 'self' ${apiOrigin} ${apiOrigin.replace(/^http/, "ws")} ${livekitOrigins}${isDev ? " ws: wss:" : ""}`,
+const DEV_WORKER_URL = process.env.DEV_WORKER_URL || "http://127.0.0.1:8787";
 
-  // Without this, default-src 'self' refuses the YouTube player outright.
-  // Scoped to the one host that needs it, and to the -nocookie origin: the
-  // player is only framed, never scripted by us, so script-src stays untouched.
-  `frame-src 'self' https://www.youtube-nocookie.com`,
-  `object-src 'none'`,
-  `base-uri 'self'`,
-  `form-action 'self'`,
-  `frame-ancestors 'none'`,
-  ...(isDev ? [] : [`upgrade-insecure-requests`]),
-].join("; ");
-
-const securityHeaders = [
-  { key: "Content-Security-Policy", value: csp },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  {
-    key: "Permissions-Policy",
-      value: "camera=(), microphone=(self), geolocation=()",
-
-  },
-  // HSTS only matters over HTTPS; harmless on http://localhost in dev but only
-  // emit it in production to avoid pinning a dev machine to HTTPS.
-  ...(isDev
-    ? []
-    : [
-        {
-          key: "Strict-Transport-Security",
-          value: "max-age=63072000; includeSubDomains; preload",
-        },
-      ]),
-];
-
+/**
+ * Static export in production. The console is entirely client-rendered (every
+ * summit page is "use client" and talks to the API through React Query), so
+ * nothing is lost by pre-rendering the shells at build time - and everything
+ * is gained on Cloudflare: the `out/` directory is served as Workers Static
+ * Assets, which never invokes a Worker and so has no CPU-time budget to exceed
+ * (the OpenNext server used to trip the Free plan's 10 ms limit on cold hits -
+ * error 1102).
+ *
+ * The three things a static export cannot carry moved out of Next:
+ * - `middleware.ts` sign-in redirect -> app/(summit)/_components/AuthGuard.tsx
+ * - `app/api/gs26/*` cookie/token proxy  -> worker/index.ts
+ * - `headers()` / `redirects()`           -> out/_headers (scripts/write-headers.mjs)
+ *                                            and public/_redirects
+ *
+ * In development `output` is left unset so `next dev` runs normally, and the
+ * `rewrites()` below stand in for the Worker's routing (rewrites are not
+ * allowed with `output: "export"`, hence the conditional).
+ */
 const nextConfig: NextConfig = {
+  ...(isProd ? { output: "export" as const } : {}),
+
   // A stray pnpm-lock.yaml higher up (~/Downloads) makes Next guess the wrong
   // workspace root; pin it to this project explicitly.
   turbopack: { root: __dirname },
 
   // jspdf / xlsx are browser-only and only run inside client click handlers.
-  // Keep them out of the server bundle so their Node-only worker code
-  // (fflate `new Worker`) doesn't break the Turbopack SSR build.
+  // Keep them out of the pre-render bundle so their Node-only worker code
+  // (fflate `new Worker`) doesn't break the build.
   serverExternalPackages: ["jspdf", "jspdf-autotable", "xlsx"],
 
-   images: {
+  // Required for `output: "export"` (no image optimiser at request time), and
+  // the app never needed one.
+  images: {
     unoptimized: true,
   },
 
-    async redirects() {
-    return [{ source: "/", destination: "/overview", permanent: false }];
-  },
-
-
-  async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
-  },
+  ...(isProd
+    ? {}
+    : {
+        async rewrites() {
+          return [{ source: "/api/gs26/:path*", destination: `${DEV_WORKER_URL}/api/gs26/:path*` }];
+        },
+        async redirects() {
+          return [{ source: "/", destination: "/overview", permanent: false }];
+        },
+      }),
 };
 
 export default nextConfig;

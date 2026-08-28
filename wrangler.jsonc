@@ -2,25 +2,28 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "gs-x",
   "compatibility_date": "2026-07-21",
-  // OpenNext runs the Next.js server on the Node.js-compat Workers runtime.
-  "compatibility_flags": ["nodejs_compat"],
-  "main": ".open-next/worker.js",
+  // The auth/token proxy. Plain fetch handler, no framework - see worker/index.ts.
+  "main": "worker/index.ts",
   "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    // `next build` output (static export) plus out/_headers from scripts/write-headers.mjs.
+    "directory": "out",
+    "binding": "ASSETS",
+    // Next exports /pitchathon as pitchathon.html; auto-trailing-slash maps
+    // the clean URL onto it without a redirect.
+    "html_handling": "auto-trailing-slash",
+    // Next emits out/404.html; serve it for unknown paths instead of 404-ing blank.
+    "not_found_handling": "404-page",
+    // Only API calls run the Worker. Everything else is answered straight from
+    // the asset store with no Worker invocation and no CPU accounting.
+    "run_worker_first": ["/api/*"]
   },
   "observability": {
     "enabled": true
   },
   "vars": {
-    "NEXT_PUBLIC_API_BASE_URL": "https://18-175-94-245.sslip.io/api/v1",
-    "API_BASE_URL": "https://18-175-94-245.sslip.io/api/v1",
-    "ACCESS_COOKIE": "gs26.access",
-    "REFRESH_COOKIE": "gs26.refresh"
+    // Runtime var for the Worker. The NEXT_PUBLIC_* origins are build-time
+    // (inlined into the static bundle by `next build`), so they live in the
+    // build environment, not here.
+    "API_BASE_URL": "https://18-175-94-245.sslip.io/api/v1"
   }
-  // Incremental cache (ISR/data cache) is optional and needs an R2 bucket:
-  // create one, then add here and reference it from open-next.config.ts:
-  //   "r2_buckets": [
-  //     { "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "gs26-cache" }
-  //   ]
 }

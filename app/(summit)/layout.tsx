@@ -1,10 +1,8 @@
 import { Archivo, Inter } from "next/font/google";
 import { SummitSidebar } from "./_components/SummitSidebar";
-import { Divide } from "lucide-react";
 import RealtimeRefresher from "./_components/RealtimeRefresher";
 import { CommandPalette } from "./_components/CommandPalette";
-
-
+import AuthGuard from "./_components/AuthGuard";
 
 const archivo = Archivo({subsets:["latin"], variable: "--font-archivo"});
 const summitInter = Inter({subsets: ["latin"], variable: "--font-submit"});
@@ -19,9 +17,11 @@ export default function SummitLayout({children}: {children: React.ReactNode}){
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1280px]">
         <SummitSidebar />
         <main className="min-w-0 flex-1 px-5 pt-8 pb-10">
-          <RealtimeRefresher />
-          <CommandPalette />
-          {children}
+          <AuthGuard>
+            <RealtimeRefresher />
+            <CommandPalette />
+            {children}
+          </AuthGuard>
         </main>
       </div>
     </div>

@@ -74,21 +74,38 @@ export default function ForumsPage() {
             }))
           }
         >
-          <SelectTrigger className={cn(inputCls, "w-auto min-w-72")}>
+          <SelectTrigger className={cn(inputCls, "w-72")}>
             <SelectValue placeholder="All boards" />
           </SelectTrigger>
-          <SelectContent>
+          {/*
+            Height and width both have to be pinned. Left alone the panel grows
+            to 90-odd rows tall (the primitive only caps it at the viewport) and
+            as wide as the longest session title, which covers the page. The
+            width is tied to the trigger so titles truncate instead of stretching
+            it, and the list scrolls past roughly eight rows.
+          */}
+          <SelectContent className="max-h-72 w-(--radix-select-trigger-width)">
             <SelectItem value={ALL_BOARDS}>
               All boards ({boards.length})
             </SelectItem>
             {boards.map((t) => (
               <SelectItem key={t.sessionId} value={t.sessionId}>
-                <span className="truncate">{t.title}</span>
-                <span className="text-xs text-summit-smoke">
-                  · {t.track} · {t.comments} comment{t.comments === 1 ? "" : "s"}
-                  {t.flagged > 0 && (
-                    <span className="text-summit-cream"> · {t.flagged} reported</span>
-                  )}
+                {/* One column, not one line: at trigger width a title and its
+                    counts cannot share a row without the title vanishing.
+                    The width is stated outright rather than left to min-w-0,
+                    because Radix's ItemText wrapper gives the flex column no
+                    width to resolve against - so `truncate` clipped the title
+                    dead at the border instead of showing an ellipsis. The 3rem
+                    is the item's own pl-1.5 + pr-8, which keeps long titles
+                    clear of the tick. */}
+                <span className="flex w-[calc(var(--radix-select-trigger-width)-3rem)] flex-col items-start gap-0.5">
+                  <span className="w-full truncate">{t.title}</span>
+                  <span className="text-xs text-summit-smoke">
+                    {t.track} · {t.comments} comment{t.comments === 1 ? "" : "s"}
+                    {t.flagged > 0 && (
+                      <span className="text-summit-cream"> · {t.flagged} reported</span>
+                    )}
+                  </span>
                 </span>
               </SelectItem>
             ))}

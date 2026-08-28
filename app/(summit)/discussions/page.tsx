@@ -43,14 +43,24 @@ export default function DiscussionsPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <Select value={sessionId ?? "none"} onValueChange={(val) => setSessionId(val === "none" ? null : val)}>
-          <SelectTrigger className={cn(inputCls, "min-w-72 w-auto")}>
+          <SelectTrigger className={cn(inputCls, "w-72")}>
             <SelectValue placeholder="Pick a session…" />
           </SelectTrigger>
-          <SelectContent>
+          {/* Same cap as the Forums board picker: 90-odd sessions with titles
+              this long otherwise open a panel the size of the page. */}
+          <SelectContent className="max-h-72 w-(--radix-select-trigger-width)">
             <SelectItem value="none">Pick a session…</SelectItem>
             {(sessions ?? []).map((s) => (
               <SelectItem key={s.id} value={s.id}>
-                Day {s.day} · {s.title} ({s.room})
+                {/* Explicit width, not min-w-0: Radix's ItemText wrapper gives
+                    the column nothing to resolve against, so `truncate` clips
+                    without an ellipsis. 3rem matches the item's pl-1.5 + pr-8. */}
+                <span className="flex w-[calc(var(--radix-select-trigger-width)-3rem)] flex-col items-start gap-0.5">
+                  <span className="w-full truncate">{s.title}</span>
+                  <span className="text-xs text-summit-smoke">
+                    Day {s.day} · {s.room}
+                  </span>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>

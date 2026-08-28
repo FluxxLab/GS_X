@@ -1,5 +1,8 @@
 import type { MetadataRoute } from "next";
 
+// Required by `output: "export"`: the manifest is generated once at build time.
+export const dynamic = "force-static";
+
 /**
  * Web app manifest: makes the console installable (home-screen / desktop app)
  * and gives it a branded splash. Served by Next at /manifest.webmanifest.
