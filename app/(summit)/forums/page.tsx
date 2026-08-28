@@ -10,6 +10,22 @@ import {
   type ForumFilters,
   type HiddenFilter,
 } from "@/lib/summit/forums";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Same trigger styling as the session picker on Discussions & Harvest, so the
+// two moderation pages read as one tool.
+const inputCls =
+  "rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac focus:border-summit-cerise";
+
+// Radix Select forbids an empty-string item value, so "all boards" needs a
+// sentinel that can never collide with a session id.
+const ALL_BOARDS = "all";
 
 const CHIP =
   "rounded-full px-3 py-1 text-xs transition-colors bg-summit-lilac/10 text-summit-smoke hover:text-summit-lilac";
@@ -43,49 +59,42 @@ export default function ForumsPage() {
         </p>
       </header>
 
-      <section>
-        <h2 className="text-[11px] tracking-[0.1em] text-summit-smoke uppercase">
-          Boards ({boards.length})
-        </h2>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {boards.length === 0 && (
-            <p className="text-sm text-summit-smoke">
-              No sessions yet. Every session is a board, so create one and it appears here.
-            </p>
-          )}
-          {boards.map((t) => (
-            <button
-              key={t.sessionId}
-              type="button"
-              onClick={() =>
-                setFilters((f) => ({
-                  ...f,
-                  sessionId: f.sessionId === t.sessionId ? undefined : t.sessionId,
-                }))
-              }
-              className={cn(
-                "glass-card flex flex-col gap-1 p-3 text-left transition-colors",
-                filters.sessionId === t.sessionId
-                  ? "border border-summit-cerise"
-                  : "hover:border-summit-lilac/30",
-              )}
-            >
-              <span className="truncate text-sm text-summit-lilac">{t.title}</span>
-              <span className="flex flex-wrap gap-2 text-xs text-summit-smoke">
-                <span>{t.track}</span>
-                <span>
-                  {t.comments} comment{t.comments === 1 ? "" : "s"}
-                </span>
-                {t.flagged > 0 && (
-                  <span className="text-summit-cream">{t.flagged} reported</span>
-                )}
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
-
       <div className="glass-card flex flex-wrap items-center gap-3 p-4">
+        {/*
+          One board per session. A dropdown instead of a card grid: with 90+
+          sessions the grid pushed the comment list below the fold, and the
+          per-board counts read better as one line per option.
+        */}
+        <Select
+          value={filters.sessionId ?? ALL_BOARDS}
+          onValueChange={(val) =>
+            setFilters((f) => ({
+              ...f,
+              sessionId: val === ALL_BOARDS ? undefined : val,
+            }))
+          }
+        >
+          <SelectTrigger className={cn(inputCls, "w-auto min-w-72")}>
+            <SelectValue placeholder="All boards" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_BOARDS}>
+              All boards ({boards.length})
+            </SelectItem>
+            {boards.map((t) => (
+              <SelectItem key={t.sessionId} value={t.sessionId}>
+                <span className="truncate">{t.title}</span>
+                <span className="text-xs text-summit-smoke">
+                  · {t.track} · {t.comments} comment{t.comments === 1 ? "" : "s"}
+                  {t.flagged > 0 && (
+                    <span className="text-summit-cream"> · {t.flagged} reported</span>
+                  )}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <button
           type="button"
           onClick={() => setFilters((f) => ({ ...f, flagged: !f.flagged }))}
@@ -125,7 +134,9 @@ export default function ForumsPage() {
         <div className="glass-card p-5 text-sm text-summit-smoke">
           {selected
             ? `No comments in "${selected.title}" yet.`
-            : "Nothing here yet. Boards are listed above; comments appear once delegates post from the app."}
+            : boards.length === 0
+              ? "No sessions yet. Every session is a board, so create one and it appears in the dropdown."
+              : "Nothing here yet. Pick a board from the dropdown, or wait for delegates to post from the app."}
         </div>
       )}
 

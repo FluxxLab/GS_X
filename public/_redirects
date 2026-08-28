@@ -1,0 +1,4 @@
+# Workers Static Assets redirects (replaces `redirects()` in next.config.ts,
+# which a static export cannot carry). There is no root page; the console
+# opens on the overview.
+/  /overview  302
