@@ -89,6 +89,22 @@ export function useUpdateSession(){
     });
 }
 
+/**
+ * Delete a session with its bookmarks, attendance, comments and transcript.
+ *
+ * Without `force` the API refuses (409) when the session has attendance,
+ * comments or captions, and the error message names what would be lost - the
+ * caller shows that and retries with force once the organiser confirms.
+ */
+export function useDeleteSession() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { id: string; force?: boolean }>({
+    mutationFn: ({ id, force }) =>
+      api<void>(`/sessions/${id}${force ? "?force=true" : ""}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sessions"] }),
+  });
+}
+
 export function useUpdateSessionStatus() {
   const qc = useQueryClient();
   return useMutation<Session, Error, { id: string; status: SessionStatus }>({

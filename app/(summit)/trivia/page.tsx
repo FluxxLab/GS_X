@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Plus, Radio, Square } from "lucide-react";
+import { BarChart3, Pencil, Plus, Radio, Square, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   TRIVIA_OPTIONS,
   useCloseTrivia,
   useCreateTrivia,
+  useDeleteTrivia,
   usePushTriviaLive,
   useTriviaQuestions,
   useTriviaStats,
+  useUpdateTrivia,
   type TriviaOption,
+  type TriviaQuestion,
   type TriviaStatus,
 } from "@/lib/summit/trivia";
 import {
@@ -45,21 +48,48 @@ export default function TriviaPage() {
   const create = useCreateTrivia();
   const pushLive = usePushTriviaLive();
   const close = useCloseTrivia();
+  const update = useUpdateTrivia();
+  const remove = useDeleteTrivia();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  // null = the form is drafting a new question; an id = editing that one
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [statsFor, setStatsFor] = useState<string | null>(null);
   const { data: stats } = useTriviaStats(statsFor);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  function startEdit(q: TriviaQuestion) {
+    setForm({
+      text: q.text,
+      optionA: q.optionA,
+      optionB: q.optionB,
+      optionC: q.optionC,
+      optionD: q.optionD,
+      correctOption: q.correctOption,
+      explanation: q.explanation ?? "",
+    });
+    setEditingId(q.id);
+    setShowForm(true);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function closeForm() {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setShowForm(false);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    await create.mutateAsync({
-      ...form,
-      explanation: form.explanation || undefined,
-    });
-    setForm(EMPTY_FORM);
-    setShowForm(false);
+    const input = { ...form, explanation: form.explanation || undefined };
+    if (editingId) {
+      await update.mutateAsync({ id: editingId, input });
+    } else {
+      await create.mutateAsync(input);
+    }
+    closeForm();
   }
 
   return (
@@ -74,7 +104,7 @@ export default function TriviaPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => (showForm ? closeForm() : setShowForm(true))}
           className="flex items-center gap-2 rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white transition-opacity hover:opacity-90"
         >
           <Plus className="size-4" /> New question
@@ -106,13 +136,19 @@ export default function TriviaPage() {
             <input className={inputCls} placeholder="Explanation (optional)"
               value={form.explanation} onChange={(e) => set("explanation", e.target.value)} />
           </div>
-          {create.error && <p className="text-sm text-summit-cream">{(create.error as Error).message}</p>}
+          {(create.error || update.error) && (
+            <p className="text-sm text-summit-cream">
+              {((create.error ?? update.error) as Error).message}
+            </p>
+          )}
           <div className="flex gap-2">
-            <button type="submit" disabled={create.isPending}
+            <button type="submit" disabled={create.isPending || update.isPending}
               className="rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white disabled:opacity-50">
-              {create.isPending ? "Saving…" : "Save draft"}
+              {editingId
+                ? update.isPending ? "Saving…" : "Save changes"
+                : create.isPending ? "Saving…" : "Save draft"}
             </button>
-            <button type="button" onClick={() => setShowForm(false)}
+            <button type="button" onClick={closeForm}
               className="rounded-[20px] px-4 py-2 text-sm text-summit-smoke hover:text-summit-lilac">
               Cancel
             </button>
@@ -175,7 +211,40 @@ export default function TriviaPage() {
                   <BarChart3 className="size-3.5" /> {statsFor === q.id ? "Hide stats" : "Stats"}
                 </button>
               )}
+              <button
+                onClick={() => startEdit(q)}
+                aria-label={`Edit question: ${q.text}`}
+                className="flex items-center gap-1.5 rounded-[20px] px-3 py-1.5 text-xs text-summit-smoke transition-colors hover:bg-summit-lilac/10 hover:text-summit-lilac"
+              >
+                <Pencil className="size-3.5" /> Edit
+              </button>
+              {/* Two taps: deleting also deletes every answer given, which
+                  removes the question from delegates' history. */}
+              <button
+                onClick={() => {
+                  if (confirmDelete !== q.id) { setConfirmDelete(q.id); return; }
+                  remove.mutate(q.id, { onSettled: () => setConfirmDelete(null) });
+                }}
+                onBlur={() => setConfirmDelete(null)}
+                disabled={remove.isPending}
+                aria-label={confirmDelete === q.id ? "Confirm delete" : `Delete question: ${q.text}`}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-[20px] px-3 py-1.5 text-xs transition-colors disabled:opacity-50",
+                  confirmDelete === q.id
+                    ? "bg-summit-cream text-summit-violet"
+                    : "text-summit-smoke hover:bg-summit-lilac/10 hover:text-summit-lilac",
+                )}
+              >
+                <Trash2 className="size-3.5" />
+                {confirmDelete === q.id ? "Delete + answers" : "Delete"}
+              </button>
             </div>
+            {editingId === q.id && (
+              <p className="mt-2 text-xs text-summit-cerulean">
+                Editing this question in the form above
+                {q.status === "live" ? " — it is live, so delegates see changes at once" : ""}.
+              </p>
+            )}
 
             {statsFor === q.id && stats && (
               <div className="mt-4 flex flex-col gap-2">

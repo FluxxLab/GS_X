@@ -19,10 +19,11 @@ export interface DocumentInput {
   sizeLabel?: string;
 }
 
+// The API returns the object key, not a public URL: the bucket blocks public
+// access, so the key is what gets published and the backend signs it on read.
 interface PresignedUpload {
   uploadUrl: string;
   key: string;
-  publicUrl: string;
 }
 
 // 404 until an admin publishes it - that is a normal state before the summit,
@@ -51,29 +52,30 @@ export function usePublishPurpleBook() {
 
 /**
  * Upload the PDF itself. Goes straight to S3 with a one-time signed URL, so a
- * large book never passes through the API. Returns the public URL to publish.
+ * large book never passes through the API. Returns the object key to publish.
  */
 export function useDocumentUpload() {
   return useMutation<string, Error, File>({
     mutationFn: async (file: File) => {
-      const { uploadUrl, publicUrl } = await api<PresignedUpload>(
+      const { uploadUrl, key } = await api<PresignedUpload>(
         "/documents/upload-url",
         { method: "POST", body: JSON.stringify({ contentType: file.type }) },
       );
 
       const put = await fetch(uploadUrl, {
         method: "PUT",
+        // must match the type the URL was signed for, or S3 rejects the PUT
         headers: { "Content-Type": file.type },
         body: file,
       });
       if (!put.ok) throw new Error(`Upload failed (${put.status})`);
 
-      return publicUrl;
+      return key;
     },
   });
 }
 
-// the API only accepts the image/pdf types its presign whitelist allows
+// the presign whitelist server-side (DOCUMENT_CONTENT_TYPES) accepts PDF only
 export const DOCUMENT_CONTENT_TYPES = ["application/pdf"] as const;
 
 export const formatSize = (bytes: number): string =>

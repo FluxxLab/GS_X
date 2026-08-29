@@ -26,8 +26,9 @@ export default function DocumentsPage() {
 
   async function pickFile(file: File | undefined) {
     if (!file) return;
-    const publicUrl = await upload.mutateAsync(file);
-    setUrl(publicUrl);
+    // the API signs the key on read, so what gets published is the key itself
+    const key = await upload.mutateAsync(file);
+    setUrl(key);
     setSizeLabel(formatSize(file.size));
   }
 
@@ -114,11 +115,11 @@ export default function DocumentsPage() {
           />
         </label>
 
-        {/* the URL stays editable: a book already hosted elsewhere can be
-            published without re-uploading it here */}
+        {/* Filled in by the upload above (as an S3 key), but editable: a book
+            already hosted elsewhere can be published by pasting its URL. */}
         <input
           className={inputCls}
-          placeholder="PDF URL"
+          placeholder="Uploaded file reference, or a link to a PDF hosted elsewhere"
           required
           value={url}
           onChange={(e) => setUrl(e.target.value)}

@@ -1,8 +1,14 @@
 "use client";
 import { useState } from "react";
-import { Megaphone } from "lucide-react";
+import { Megaphone, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SEGMENTS, useNotifications, useSendNotification, type Segment } from "@/lib/summit/notifications";
+import {
+  SEGMENTS,
+  useDeleteNotification,
+  useNotifications,
+  useSendNotification,
+  type Segment,
+} from "@/lib/summit/notifications";
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -11,6 +17,8 @@ const inputCls =
 export default function Announce(){
     const  {data: sent} = useNotifications();
     const send = useSendNotification();
+    const remove = useDeleteNotification();
+    const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
     const [title, setTitle] = useState("");
     const [body, setBody] = useState("");
     const [category, setCategory] = useState("");
@@ -109,6 +117,29 @@ export default function Announce(){
               <span className="rounded-full bg-summit-cerulean/15 px-2.5 py-0.5 text-[11px] text-summit-cerulean uppercase">
                 {n.segment}
               </span>
+              {n.id && (
+                // two taps on purpose: the first arms, the second deletes -
+                // a retraction removes the item from every delegate's inbox
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmDelete !== n.id) { setConfirmDelete(n.id!); return; }
+                    remove.mutate(n.id!, { onSettled: () => setConfirmDelete(null) });
+                  }}
+                  onBlur={() => setConfirmDelete(null)}
+                  disabled={remove.isPending}
+                  aria-label={confirmDelete === n.id ? "Confirm delete" : `Delete “${n.title}”`}
+                  className={cn(
+                    "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] transition-colors disabled:opacity-50",
+                    confirmDelete === n.id
+                      ? "bg-summit-cream text-summit-violet"
+                      : "text-summit-smoke hover:bg-summit-lilac/10 hover:text-summit-lilac",
+                  )}
+                >
+                  <Trash2 className="size-3.5" />
+                  {confirmDelete === n.id ? "Confirm" : "Delete"}
+                </button>
+              )}
             </li>
           ))}
         </ul>

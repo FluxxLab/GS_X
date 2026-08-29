@@ -38,6 +38,32 @@ export interface DelegateFilters {
   track?: string;
 }
 
+/**
+ * Approval gate: a delegate with `pendingReview` sees a waiting screen in the
+ * app instead of the summit. Approving clears it, and the app is told over the
+ * delegate's own socket room so the wait ends without a restart.
+ */
+export function useSetApproval() {
+  const qc = useQueryClient();
+  return useMutation<Delegate, Error, { id: string; approved: boolean }>({
+    mutationFn: ({ id, approved }) =>
+      api<Delegate>(`/delegates/${id}/approval`, {
+        method: "PATCH",
+        body: JSON.stringify({ approved }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["delegates"] }),
+  });
+}
+
+/** Approve everyone still waiting. Returns how many were let in. */
+export function useApproveAll() {
+  const qc = useQueryClient();
+  return useMutation<{ approved: number }, Error, void>({
+    mutationFn: () => api<{ approved: number }>("/delegates/approve-all", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["delegates"] }),
+  });
+}
+
 export function useDelegates(filters: DelegateFilters) {
   return useQuery({
     queryKey: ["delegates", filters],

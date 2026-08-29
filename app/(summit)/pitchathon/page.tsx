@@ -1,10 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Trophy } from "lucide-react";
+import { Pencil, Plus, Trash2, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTracks, type Track } from "@/lib/summit/sessions";
-import { usePitchEntries, useCreatePitchEntry } from "@/lib/summit/voting";
+import {
+  usePitchEntries,
+  useCreatePitchEntry,
+  useDeletePitchEntry,
+  useUpdatePitchEntry,
+  type PitchEntry,
+} from "@/lib/summit/voting";
 import {
   Select,
   SelectContent,
@@ -29,9 +35,32 @@ export default function PitchathonPage() {
   const { data: tracks = [] } = useTracks();
   const { data: entries, isLoading, error } = usePitchEntries();
   const create = useCreatePitchEntry();
+  const update = useUpdatePitchEntry();
+  const remove = useDeletePitchEntry();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY);
+  // null = the form is adding; an id = the form is editing that entry
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [trackFilter, setTrackFilter] = useState<Track | "">("");
+
+  function startEdit(entry: PitchEntry) {
+    setForm({
+      innovatorName: entry.innovatorName,
+      country: entry.country,
+      track: entry.track,
+      description: entry.description,
+    });
+    setEditingId(entry.id);
+    setShowForm(true);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function closeForm() {
+    setForm(EMPTY);
+    setEditingId(null);
+    setShowForm(false);
+  }
 
   const ranked = useMemo(() => {
     const list = [...(entries ?? [])].sort((a, b) => b.voteCount - a.voteCount);
@@ -45,9 +74,12 @@ export default function PitchathonPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    await create.mutateAsync(form);
-    setForm(EMPTY);
-    setShowForm(false);
+    if (editingId) {
+      await update.mutateAsync({ id: editingId, input: form });
+    } else {
+      await create.mutateAsync(form);
+    }
+    closeForm();
   }
 
   return (
@@ -62,7 +94,7 @@ export default function PitchathonPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => (showForm ? closeForm() : setShowForm(true))}
           className="flex items-center gap-2 rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white transition-opacity hover:opacity-90"
         >
           <Plus className="size-4" /> New entry
@@ -106,18 +138,28 @@ export default function PitchathonPage() {
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
           />
-          {create.error && <p className="text-sm text-summit-cream">{(create.error as Error).message}</p>}
+          {(create.error || update.error) && (
+            <p className="text-sm text-summit-cream">
+              {((create.error ?? update.error) as Error).message}
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               type="submit"
-              disabled={create.isPending}
+              disabled={create.isPending || update.isPending}
               className="rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white disabled:opacity-50"
             >
-              {create.isPending ? "Adding…" : "Add entry"}
+              {editingId
+                ? update.isPending
+                  ? "Saving…"
+                  : "Save changes"
+                : create.isPending
+                  ? "Adding…"
+                  : "Add entry"}
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={closeForm}
               className="rounded-[20px] px-4 py-2 text-sm text-summit-smoke hover:text-summit-lilac"
             >
               Cancel
@@ -195,11 +237,53 @@ export default function PitchathonPage() {
                   />
                 </div>
               </div>
-              <div className="shrink-0 text-right">
-                <p className="font-[family-name:var(--font-archivo)] text-2xl font-bold text-summit-cerise">
-                  {entry.voteCount.toLocaleString()}
-                </p>
-                <p className="text-[11px] text-summit-smoke uppercase">votes</p>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <div className="text-right">
+                  <p className="font-[family-name:var(--font-archivo)] text-2xl font-bold text-summit-cerise">
+                    {entry.voteCount.toLocaleString()}
+                  </p>
+                  <p className="text-[11px] text-summit-smoke uppercase">votes</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(entry)}
+                    aria-label={`Edit ${entry.innovatorName}`}
+                    className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-summit-smoke transition-colors hover:bg-summit-lilac/10 hover:text-summit-lilac"
+                  >
+                    <Pencil className="size-3.5" /> Edit
+                  </button>
+                  {/* Two taps: the first arms, the second withdraws. Deleting an
+                      entry also deletes the votes cast for it, so it is worth
+                      the extra click. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirmDelete !== entry.id) { setConfirmDelete(entry.id); return; }
+                      remove.mutate(entry.id, { onSettled: () => setConfirmDelete(null) });
+                    }}
+                    onBlur={() => setConfirmDelete(null)}
+                    disabled={remove.isPending}
+                    aria-label={
+                      confirmDelete === entry.id
+                        ? `Confirm removing ${entry.innovatorName} and its ${entry.voteCount} votes`
+                        : `Remove ${entry.innovatorName}`
+                    }
+                    className={cn(
+                      "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] transition-colors disabled:opacity-50",
+                      confirmDelete === entry.id
+                        ? "bg-summit-cream text-summit-violet"
+                        : "text-summit-smoke hover:bg-summit-lilac/10 hover:text-summit-lilac",
+                    )}
+                  >
+                    <Trash2 className="size-3.5" />
+                    {confirmDelete === entry.id
+                      ? entry.voteCount > 0
+                        ? `Delete + ${entry.voteCount} votes`
+                        : "Confirm"
+                      : "Delete"}
+                  </button>
+                </div>
               </div>
             </div>
           </article>

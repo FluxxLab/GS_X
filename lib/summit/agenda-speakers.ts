@@ -121,7 +121,7 @@ const clean = (s: string) =>
 
 /**
  * Is this text a person's name?
- *
+ *push
  * Deliberately conservative, and it rejects before it accepts: an honorific is
  * strong evidence but does not override a job title or a planning note, or
  * "Amb. Canada" and "Hon. Minister" would both become speakers. What survives

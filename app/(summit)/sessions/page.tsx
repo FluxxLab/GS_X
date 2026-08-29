@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Pencil, Plus, Search, Upload, X } from "lucide-react";
+import { Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { read, utils } from "xlsx";
 import { cn } from "@/lib/utils";
 import {
   SESSION_STATUSES,
+  useDeleteSession,
   useSessions,
   useUpdateSessionStatus,
   type Session,
@@ -62,6 +63,9 @@ export default function SessionsPage(){
     const { data: knownSpeakers } = useSpeakers();
     const updateStatus = useUpdateSessionStatus();
     const apply = useApplyAgenda();
+    const remove = useDeleteSession();
+    // { id } = armed; { id, warning } = the API refused and named the cost
+    const [confirmDelete, setConfirmDelete] = useState<{ id: string; warning?: string } | null>(null);
     const [editing, setEditing] = useState<Session | null>(null);
     const [creating, setCreating] = useState(false);
     /** Free-text filter over the agenda. Matches title, room, type, track and
@@ -457,6 +461,51 @@ export default function SessionsPage(){
                       ))}
                     </SelectContent>
                   </Select>
+                  {/* Three states: idle, armed, and "it has activity" - the
+                      last one only appears after the API refuses and says
+                      exactly what would be destroyed. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirmDelete?.id !== s.id) {
+                        setConfirmDelete({ id: s.id });
+                        return;
+                      }
+                      remove.mutate(
+                        { id: s.id, force: !!confirmDelete.warning },
+                        {
+                          onSuccess: () => setConfirmDelete(null),
+                          onError: (err) =>
+                            setConfirmDelete({ id: s.id, warning: err.message }),
+                        },
+                      );
+                    }}
+                    onBlur={() => setConfirmDelete(null)}
+                    disabled={remove.isPending}
+                    title={confirmDelete?.warning ?? "Delete session"}
+                    aria-label={
+                      confirmDelete?.id === s.id
+                        ? confirmDelete.warning
+                          ? `Delete ${s.title} anyway: ${confirmDelete.warning}`
+                          : `Confirm deleting ${s.title}`
+                        : `Delete ${s.title}`
+                    }
+                    className={cn(
+                      "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] transition-colors disabled:opacity-50",
+                      confirmDelete?.id === s.id
+                        ? confirmDelete.warning
+                          ? "bg-summit-cerise text-white"
+                          : "bg-summit-cream text-summit-violet"
+                        : "text-summit-smoke hover:bg-summit-lilac/10 hover:text-summit-lilac",
+                    )}
+                  >
+                    <Trash2 className="size-3.5" />
+                    {confirmDelete?.id === s.id
+                      ? confirmDelete.warning
+                        ? "Delete anyway"
+                        : "Confirm"
+                      : ""}
+                  </button>
                 </li>
               ))}
           </ul>

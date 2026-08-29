@@ -34,3 +34,13 @@ export function useSendNotification(){
             onSuccess: () => qc.invalidateQueries({ queryKey:["notifications"]}),
     });
 }
+
+/** Retract an announcement: it disappears from every delegate inbox. */
+export function useDeleteNotification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<void>(`/notifications/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+}

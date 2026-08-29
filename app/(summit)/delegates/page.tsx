@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Flag, Plus } from "lucide-react";
+import { Check, CheckCheck, Clock, Download, Flag, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTracks } from "@/lib/summit/sessions";
 import {
@@ -14,6 +14,8 @@ import {
   useUpdateRegistrationEntry,
   useDeleteRegistrationEntry,
   useSetTier,
+  useSetApproval,
+  useApproveAll,
   type Tier,
   type RegistrationEntry,
 } from "@/lib/summit/delegates";
@@ -81,6 +83,14 @@ function Directory() {
   const { data: rawDelegates, isLoading, error } = useDelegates({ search, tier, track });
   const delegates = (rawDelegates ?? []).filter(d => d.accessTier !== "admin");
   const setTierMut = useSetTier();
+  const setApproval = useSetApproval();
+  const approveAll = useApproveAll();
+  const [confirmApproveAll, setConfirmApproveAll] = useState(false);
+  // counted from the unfiltered list: the button should not disappear because
+  // a search happens to exclude everyone who is waiting
+  const pendingCount = (rawDelegates ?? []).filter(
+    (d) => d.pendingReview && d.accessTier !== "admin",
+  ).length;
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -127,6 +137,33 @@ function Directory() {
             ))}
           </SelectContent>
         </Select>
+        {/* Only appears when someone is actually waiting, so it cannot be
+            clicked out of habit on a fully approved list. Two taps, because it
+            lets every pending delegate into the summit at once. */}
+        {pendingCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!confirmApproveAll) { setConfirmApproveAll(true); return; }
+              approveAll.mutate(undefined, { onSettled: () => setConfirmApproveAll(false) });
+            }}
+            onBlur={() => setConfirmApproveAll(false)}
+            disabled={approveAll.isPending}
+            className={cn(
+              "flex items-center gap-2 rounded-[20px] px-4 py-2 text-sm transition-opacity hover:opacity-90 disabled:opacity-50",
+              confirmApproveAll
+                ? "bg-summit-cerise text-white"
+                : "bg-summit-cream text-summit-violet",
+            )}
+          >
+            <CheckCheck className="size-4" />
+            {approveAll.isPending
+              ? "Approving…"
+              : confirmApproveAll
+                ? `Approve all ${pendingCount}?`
+                : `Approve all (${pendingCount})`}
+          </button>
+        )}
         <div className="ml-auto flex flex-col items-end">
           <button
             onClick={onExport}
@@ -159,6 +196,7 @@ function Directory() {
               <th className="pb-3 font-normal">Tracks</th>
               <th className="pb-3 font-normal">Interests</th>
               <th className="pb-3 font-normal">Tier</th>
+              <th className="pb-3 font-normal">Access</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-summit-lilac/10">
@@ -218,11 +256,43 @@ function Directory() {
                     </SelectContent>
                   </Select>
                 </td>
+                <td className="py-3">
+                  {/* Approved delegates get the summit; the rest see a
+                      countdown until an organiser lets them in. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setApproval.mutate({ id: d.id, approved: d.pendingReview })
+                    }
+                    disabled={setApproval.isPending}
+                    aria-label={
+                      d.pendingReview
+                        ? `Approve ${d.name}`
+                        : `Withdraw access for ${d.name}`
+                    }
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50",
+                      d.pendingReview
+                        ? "bg-summit-cream text-summit-violet hover:opacity-90"
+                        : "bg-summit-green/15 text-summit-green hover:bg-summit-green/25",
+                    )}
+                  >
+                    {d.pendingReview ? (
+                      <>
+                        <Clock className="size-3.5" /> Approve
+                      </>
+                    ) : (
+                      <>
+                        <Check className="size-3.5" /> Approved
+                      </>
+                    )}
+                  </button>
+                </td>
               </tr>
             ))}
             {!isLoading && delegates.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-summit-smoke">
+                <td colSpan={6} className="py-6 text-center text-summit-smoke">
                   No delegates match.
                 </td>
               </tr>

@@ -39,3 +39,25 @@ export function useCreatePitchEntry() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["voting"] }),
   });
 }
+
+/** Correct an entry's details. Votes already cast are not affected. */
+export function useUpdatePitchEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<PitchEntryInput> }) =>
+      api<PitchEntry>(`/voting/entries/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["voting"] }),
+  });
+}
+
+/** Withdraw an entry. This also deletes every vote cast for it. */
+export function useDeletePitchEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/voting/entries/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["voting"] }),
+  });
+}

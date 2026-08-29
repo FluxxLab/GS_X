@@ -50,6 +50,28 @@ export function useCreateTrivia() {
   });
 }
 
+/** Correct a question. A live one is re-sent to delegates immediately. */
+export function useUpdateTrivia() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<TriviaInput> }) =>
+      api<TriviaQuestion>(`/trivia/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["trivia"] }),
+  });
+}
+
+/** Delete a question and every answer given to it. */
+export function useDeleteTrivia() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/trivia/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["trivia"] }),
+  });
+}
+
 export function usePushTriviaLive() {
   const qc = useQueryClient();
   return useMutation({
