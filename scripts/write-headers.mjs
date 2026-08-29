@@ -32,6 +32,18 @@ try {
   // keep the raw value if it isn't a parseable URL
 }
 
+/**
+ * The S3 bucket documents and speaker photos are PUT to directly.
+ *
+ * Uploads bypass the API on purpose - a large PDF should not stream through
+ * the Worker - which means the browser connects to S3 itself, and CSP has to
+ * allow it. Without this the upload fails as a bare "Failed to fetch" with no
+ * entry in the network panel at all, because the request is blocked before it
+ * is ever dispatched (the bucket's own CORS rules never even come into it).
+ */
+const s3Origin = process.env.NEXT_PUBLIC_S3_ORIGIN
+  || "https://gs26-assets.s3.eu-west-2.amazonaws.com";
+
 let livekitOrigins = "";
 try {
   const { host } = new URL(livekitUrl);
@@ -55,9 +67,10 @@ const csp = [
   `script-src 'self' 'unsafe-inline'`,
   `style-src 'self' 'unsafe-inline'`,
   // i.ytimg.com serves the poster frame for the marketing site's YouTube embed.
-  `img-src 'self' data: blob: https://i.ytimg.com ${apiOrigin}`,
+  // s3Origin: delegate photos and speaker headshots are read from signed URLs
+  `img-src 'self' data: blob: https://i.ytimg.com ${apiOrigin} ${s3Origin}`,
   `font-src 'self' data:`,
-  `connect-src 'self' ${apiOrigin} ${apiOrigin.replace(/^http/, "ws")} ${livekitOrigins}`.trim(),
+  `connect-src 'self' ${apiOrigin} ${apiOrigin.replace(/^http/, "ws")} ${s3Origin} ${livekitOrigins}`.trim(),
   // Without this, default-src 'self' refuses the YouTube player outright.
   `frame-src 'self' https://www.youtube-nocookie.com`,
   `object-src 'none'`,
@@ -78,4 +91,6 @@ const headers = [
 
 const file = ["/*", ...headers.map(([k, v]) => `  ${k}: ${v}`)].join("\n") + "\n";
 writeFileSync(join(OUT_DIR, "_headers"), file);
-console.log(`write-headers: wrote out/_headers (${headers.length} headers, api=${apiOrigin})`);
+console.log(
+  `write-headers: wrote out/_headers (${headers.length} headers, api=${apiOrigin}, s3=${s3Origin})`,
+);
