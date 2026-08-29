@@ -6,6 +6,7 @@
     "dev": "next dev",
     "dev:worker": "wrangler dev --port 8787",
     "build": "next build && node scripts/write-headers.mjs",
+    "build:next": "next build",
     "lint": "eslint",
     "test": "vitest run",
     "audit:prod": "pnpm audit --prod --audit-level high",
