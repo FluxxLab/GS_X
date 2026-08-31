@@ -36,7 +36,7 @@ const NAV = [
     {href: "/discussions", label: "Discussions", icon: RadioTower},
     { href: "/forums", label: "Forums", icon: MessagesSquare },
     { href: "/capture", label: "Capture", icon: Mic },
-    { href: "/pitchathon", label: "Pitchathon", icon: Mic2 },
+    { href: "/pitchathon", label: "Innovation Hub", icon: Mic2 },
     { href: "/documents", label: "Documents", icon: BookOpen },
 
 

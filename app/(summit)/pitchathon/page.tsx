@@ -69,7 +69,7 @@ export default function PitchathonPage() {
     <div className="flex flex-col gap-6">
       <header>
         <h1 className="font-[family-name:var(--font-archivo)] text-3xl font-bold tracking-[-0.025em]">
-          Pitchathon
+          Innovation Hub
         </h1>
         <p className="mt-1 text-sm text-summit-smoke">
           {(topics ?? []).length} topics · {totalPitches} pitches ·{" "}

@@ -27,7 +27,7 @@ const SECTIONS: { heading: string; body: (string | string[])[] }[] = [
     body: [
       "Account and registration: your name, email address, password (stored only as a one-way cryptographic hash, so we cannot read it), an optional phone number if you verify by SMS, and the time you gave consent. Your access tier (standard, VIP, press and so on) comes from the summit's registration list, not from anything you enter.",
       "Profile: organisation, role, country, the tracks and interests you select, and an optional profile photo.",
-      "Things you create in the app: direct messages to other delegates (including reactions and replies), comments in session discussions, trivia answers, Pitchathon votes, networking connections (for example when another delegate scans your QR pass), session attendance, and your certificate of participation once earned.",
+      "Things you create in the app: direct messages to other delegates (including reactions and replies), comments in session discussions, trivia answers, Innovation Hub votes, networking connections (for example when another delegate scans your QR pass), session attendance, and your certificate of participation once earned.",
       "Technical data: a push notification token for your device if you enable notifications, and the IP address and device identifier captured when you sign in, kept for account security (for example to revoke stolen sessions).",
     ],
   },
