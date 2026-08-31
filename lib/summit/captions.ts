@@ -11,6 +11,7 @@ export const CAPTION_LANGUAGES = [
   { code: "ig", label: "Igbo" },
   { code: "yo", label: "Yoruba" },
   { code: "pcm", label: "Nigerian Pidgin" },
+  {code: "fr", label: "French"}
 ] as const;
 
 export type CaptionLanguageCode = (typeof CAPTION_LANGUAGES)[number]["code"];
