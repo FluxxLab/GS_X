@@ -18,6 +18,8 @@ export default function RealtimeRefresher() {
       qc.invalidateQueries({ queryKey: ["live-ops"] });
     };
     const onNotification = () => qc.invalidateQueries({ queryKey: ["notifications"] });
+    // Ballot movement, and the two state changes that decide when a tally is
+    // a result. All three land on the same query key.
     const onTally = () => qc.invalidateQueries({ queryKey: ["voting"] });
     const onTrivia = () => qc.invalidateQueries({ queryKey: ["trivia"] });
     const onFlags = () => qc.invalidateQueries({ queryKey: ["live-ops"] });
@@ -29,6 +31,12 @@ export default function RealtimeRefresher() {
         s.on("session:status", onSession);
         s.on("notification", onNotification);
         s.on("voting:tally", onTally);
+        s.on("voting:opened", onTally);
+        s.on("voting:closed", onTally);
+        s.on("voting:topic-updated", onTally);
+        s.on("voting:topic-deleted", onTally);
+        s.on("voting:entry-updated", onTally);
+        s.on("voting:entry-deleted", onTally);
         s.on("trivia:distribution", onTrivia);
         s.on("trivia:question", onTrivia);
         s.on("trivia:closed", onTrivia);
@@ -45,6 +53,12 @@ export default function RealtimeRefresher() {
       s?.off("session:status", onSession);
       s?.off("notification", onNotification);
       s?.off("voting:tally", onTally);
+      s?.off("voting:opened", onTally);
+      s?.off("voting:closed", onTally);
+      s?.off("voting:topic-updated", onTally);
+      s?.off("voting:topic-deleted", onTally);
+      s?.off("voting:entry-updated", onTally);
+      s?.off("voting:entry-deleted", onTally);
       s?.off("trivia:distribution", onTrivia);
       s?.off("trivia:question", onTrivia);
       s?.off("trivia:closed", onTrivia);
