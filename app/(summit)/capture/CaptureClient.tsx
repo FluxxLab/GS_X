@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/summit/sessions";
 import { useCapture } from "@/lib/summit/capture";
 import { getSocket, joinRoom, leaveRoom } from "@/lib/summit/socket";
-import { CAPTION_LANGUAGES, type CaptionLanguageCode } from "@/lib/summit/captions";
+import {
+  CAPTION_LANGUAGES,
+  useCaptionHistory,
+  type CaptionLanguageCode,
+} from "@/lib/summit/captions";
 import {
   Select,
   SelectContent,
@@ -40,9 +44,33 @@ export default function CaptureClient() {
   const rooms = [...new Set((sessions ?? []).map((s) => s.room))].sort();
   const liveHere = (sessions ?? []).find((s) => s.room === room && s.status === "live") ?? null;
 
-  const [lines, setLines] = useState<string[]>([]);
+  const [lines, setLines] = useState<{ text: string; speaker: number | null }[]>(
+    [],
+  );
   const [interim, setInterim] = useState("");
   const [language, setLanguage] = useState<CaptionLanguageCode>("en");
+
+  // What was said before this page was opened. Held apart from the live lines
+  // because it is refetched whole on a language switch; merging the two would
+  // duplicate everything already on screen.
+  const { data: history, isPending: historyPending } = useCaptionHistory(
+    liveHere?.id ?? null,
+    language,
+  );
+  const transcript = useMemo(
+    () => [
+      ...(history ?? []).map((c) => ({ text: c.text, speaker: c.speaker })),
+      ...lines,
+    ],
+    [history, lines],
+  );
+
+  // The panel scrolls, so new lines land out of view unless it follows them.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [transcript.length, interim]);
 
   useEffect(() => {
     if (!liveHere) return;
@@ -55,11 +83,18 @@ export default function CaptureClient() {
 
     const onCaption = (c: CaptionEvent) => {
       if (c.sessionId !== liveHere.id) return;
-      const label = c.speaker === undefined ? "" : `Speaker ${c.speaker + 1}: `;
       if (c.isFinal) {
         setInterim("");
-        setLines((prev) => [...prev.slice(-3), `${label}${c.text}`]);
+        // No longer capped at the last four: the panel scrolls and carries the
+        // session's history, so an operator can look back at what was said
+        // rather than only at the sentence going past. Bounded well above a
+        // day's captioning so a long plenary cannot grow it without limit.
+        setLines((prev) => [
+          ...prev.slice(-499),
+          { text: c.text, speaker: c.speaker ?? null },
+        ]);
       } else {
+        const label = c.speaker === undefined ? "" : `Speaker ${c.speaker + 1}: `;
         setInterim(`${label}${c.text}`);
       }
     };
@@ -206,16 +241,31 @@ export default function CaptureClient() {
               ))}
             </div>
           </div>
-          <div className="mt-3 flex min-h-24 flex-col gap-1 text-sm">
-            {lines.map((l, i) => (
-              <p key={i} className="text-summit-lilac">{l}</p>
+          <div
+            ref={scrollRef}
+            className="mt-3 flex max-h-96 min-h-24 flex-col gap-1 overflow-y-auto text-sm"
+          >
+            {transcript.map((l, i) => (
+              <div key={i}>
+                {/* Only where the speaker changes - repeating the label on
+                    every line down a whole transcript buries the words. */}
+                {l.speaker !== null &&
+                  l.speaker !== transcript[i - 1]?.speaker && (
+                    <p className="mt-2 text-xs text-summit-smoke">
+                      Speaker {l.speaker + 1}
+                    </p>
+                  )}
+                <p className="text-summit-lilac">{l.text}</p>
+              </div>
             ))}
             {interim && <p className="text-summit-smoke italic">{interim}</p>}
-            {lines.length === 0 && !interim && (
+            {transcript.length === 0 && !interim && (
               <p className="text-summit-smoke">
-                {language === "en"
-                  ? "Captions appear here once speech is detected."
-                  : "Translations arrive a moment after each English final, so this stays empty until a full phrase lands."}
+                {historyPending
+                  ? "Loading what has been said…"
+                  : language === "en"
+                    ? "Captions appear here once speech is detected."
+                    : "Translations arrive a moment after each English final, so this stays empty until a full phrase lands."}
               </p>
             )}
           </div>
