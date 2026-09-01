@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { Eye, EyeOff, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { read, utils } from "xlsx";
 import { cn } from "@/lib/utils";
 import {
@@ -15,7 +15,11 @@ import {
 import { normaliseAgenda, type AgendaImport } from "@/lib/summit/agenda-import";
 import { speakerKey } from "@/lib/summit/agenda-speakers";
 import { useApplyAgenda } from "@/lib/summit/agenda-apply";
-import { useSpeakers } from "@/lib/summit/speakers";
+import {
+  useSpeakers,
+  useSetSpeakerReveal,
+  useSpeakerReveal,
+} from "@/lib/summit/speakers";
 import { SessionForm } from "@/app/(summit)/_components/SessionForm";
 import {
   Select,
@@ -61,6 +65,9 @@ function matchesQuery(s: Session, query: string): boolean {
 export default function SessionsPage(){
     const {data: sessions, isLoading, error} = useSessions();
     const { data: knownSpeakers } = useSpeakers();
+    const { data: reveal } = useSpeakerReveal();
+    const setReveal = useSetSpeakerReveal();
+    const speakersRevealed = reveal?.revealed ?? false;
     const updateStatus = useUpdateSessionStatus();
     const apply = useApplyAgenda();
     const remove = useDeleteSession();
@@ -165,8 +172,37 @@ export default function SessionsPage(){
           <p className="mt-1 text-sm text-summit-smoke">
             Agenda control — status changes go live to delegates instantly.
           </p>
+          <p className="mt-1 text-xs text-summit-smoke">
+            {speakersRevealed
+              ? "Speaker names are public in the delegate app."
+              : "Speaker names are hidden from delegates — they see “To be announced”."}
+          </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* One switch for the whole programme. Delegates see the change
+              immediately; this dashboard always shows the real line-up. */}
+          <button
+            onClick={() => setReveal.mutate(!speakersRevealed)}
+            disabled={setReveal.isPending}
+            aria-pressed={speakersRevealed}
+            className={cn(
+              "flex items-center gap-2 rounded-[20px] px-4 py-2 text-sm transition-opacity hover:opacity-90 disabled:opacity-50",
+              speakersRevealed
+                ? "bg-summit-violet text-summit-lilac"
+                : "bg-summit-cerise text-white",
+            )}
+          >
+            {speakersRevealed ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
+            {setReveal.isPending
+              ? "Saving…"
+              : speakersRevealed
+                ? "Hide speakers"
+                : "Reveal speakers"}
+          </button>
           <input
             type="file"
             accept=".xlsx, .xls, .csv"

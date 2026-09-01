@@ -65,3 +65,34 @@ export function useCreateSpeaker() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["speakers"] }),
   });
 }
+
+/**
+ * The speaker reveal: one global switch for the whole programme.
+ *
+ * While it is off the API withholds every speaker's name, role, organisation
+ * and photo from delegates - the mobile app shows "To be announced" - and
+ * speaker search returns nothing. Admin always sees the real line-up, which is
+ * why this dashboard looks the same either way.
+ */
+export function useSpeakerReveal() {
+  return useQuery({
+    queryKey: ["speakers", "reveal"],
+    queryFn: () => api<{ revealed: boolean }>("/speakers/reveal"),
+  });
+}
+
+export function useSetSpeakerReveal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (revealed: boolean) =>
+      api<{ revealed: boolean }>("/speakers/reveal", {
+        method: "POST",
+        body: JSON.stringify({ revealed }),
+      }),
+    // Sessions carry speakers, so both caches are stale once this flips.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["speakers"] });
+      void qc.invalidateQueries({ queryKey: ["sessions"] });
+    },
+  });
+}
