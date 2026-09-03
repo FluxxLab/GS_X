@@ -79,6 +79,7 @@ const SECTIONS: { heading: string; body: (string | string[])[] }[] = [
     heading: "Your rights",
     body: [
       "Under the NDPA you can ask for access to the personal data we hold about you, ask us to correct it, ask us to delete it (the in-app deletion does this immediately), and withdraw consent. You also have the right to complain to the Nigeria Data Protection Commission.",
+      "You can also ask us to restrict how we process your data while a request above is being resolved, ask for a copy of the data you provided in a portable format, and object to any processing carried out solely by automated means. We do not currently make any decision about you - eligibility, access tier, or otherwise - by automated means alone; every such decision is set by the summit's registration list or made by a person.",
       "Inside the app you can additionally turn push notifications off at any time, report content, and block other delegates.",
     ],
   },
@@ -120,7 +121,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="mt-2 text-sm text-summit-smoke">
-        Effective 27 August 2026 · Policy Innovation Centre
+        Effective 3 September 2026 · Policy Innovation Centre
       </p>
 
       <div className="mt-10 flex flex-col gap-8">
