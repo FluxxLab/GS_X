@@ -92,7 +92,7 @@ const SECTIONS: { heading: string; body: (string | string[])[] }[] = [
   {
     heading: "Changes and contact",
     body: [
-      "If this policy changes we will update this page and note the new effective date. Questions and data requests can be made through the Policy Innovation Centre's published contact channels at policyinnovationcentre.org.",
+      "If this policy changes we will update this page and note the new effective date. Questions and data requests can be made through the Policy Innovation Centre's contact page at policycentre.org/contact.",
     ],
   },
 ];
