@@ -43,8 +43,21 @@ export default function DiscussionsPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <Select value={sessionId ?? "none"} onValueChange={(val) => setSessionId(val === "none" ? null : val)}>
-          <SelectTrigger className={cn(inputCls, "w-72")}>
-            <SelectValue placeholder="Pick a session…" />
+          {/* The list rows are two lines sized to the trigger width; the
+              trigger is one line. Radix renders the selected row's children
+              here by default, so that second line - and its calc() width,
+              which refers to --radix-select-trigger-width, a variable Radix
+              only defines on the content - came with it. The width resolved to
+              nothing and the title ran under the chevron with no ellipsis.
+              Render the bare title here instead. */}
+          <SelectTrigger className={cn(inputCls, "w-72 [&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:flex-1")}>
+            {selected ? (
+              <SelectValue>
+                <span className="truncate">{selected.title}</span>
+              </SelectValue>
+            ) : (
+              <SelectValue placeholder="Pick a session…" />
+            )}
           </SelectTrigger>
           {/* Same cap as the Forums board picker: 90-odd sessions with titles
               this long otherwise open a panel the size of the page. */}

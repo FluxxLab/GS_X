@@ -29,6 +29,7 @@ const SECTIONS: { heading: string; body: (string | string[])[] }[] = [
       "Profile: organisation, role, country, the tracks and interests you select, and an optional profile photo.",
       "Things you create in the app: direct messages to other delegates (including reactions and replies), comments in session discussions, trivia answers, Innovation Hub votes, networking connections (for example when another delegate scans your QR pass), session attendance, and your certificate of participation once earned.",
       "Technical data: a push notification token for your device if you enable notifications, and the IP address and device identifier captured when you sign in, kept for account security (for example to revoke stolen sessions).",
+      "Device permissions: the app asks for camera access only when you scan another delegate's QR pass to connect. The camera image is read on your device to decode the QR code and is never uploaded, stored or seen by us. It asks for photo library access only when you choose a profile photo, and reads nothing else from your library. You can refuse either permission and still use the rest of the app.",
     ],
   },
   {

@@ -47,6 +47,9 @@ export default function ForumsPage() {
   const boards = threads ?? [];
   const selected = boards.find((t) => t.sessionId === filters.sessionId) ?? null;
 
+  const selectedBoard =
+    boards.find((b) => b.sessionId === filters.sessionId) ?? null;
+
   return (
     <div className="flex flex-col gap-6">
       <header>
@@ -74,8 +77,18 @@ export default function ForumsPage() {
             }))
           }
         >
-          <SelectTrigger className={cn(inputCls, "w-72")}>
-            <SelectValue placeholder="All boards" />
+          {/* Same as the Discussions picker: the rows are two lines, the
+              trigger is one, and Radix would otherwise render the row's
+              children - second line and unresolvable calc() width included -
+              inside the fixed-height trigger. */}
+          <SelectTrigger className={cn(inputCls, "w-72 [&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:flex-1")}>
+            {selectedBoard ? (
+              <SelectValue>
+                <span className="truncate">{selectedBoard.title}</span>
+              </SelectValue>
+            ) : (
+              <SelectValue placeholder="All boards" />
+            )}
           </SelectTrigger>
           {/*
             Height and width both have to be pinned. Left alone the panel grows

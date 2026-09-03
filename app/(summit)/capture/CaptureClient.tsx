@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Mic, Square } from "lucide-react";
+import { Mic, Square, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/summit/sessions";
 import { useCapture } from "@/lib/summit/capture";
@@ -9,6 +10,7 @@ import { getSocket, joinRoom, leaveRoom } from "@/lib/summit/socket";
 import {
   CAPTION_LANGUAGES,
   useCaptionHistory,
+  useClearCaptions,
   type CaptionLanguageCode,
 } from "@/lib/summit/captions";
 import {
@@ -49,6 +51,8 @@ export default function CaptureClient() {
   );
   const [interim, setInterim] = useState("");
   const [language, setLanguage] = useState<CaptionLanguageCode>("en");
+  const [confirmClear, setConfirmClear] = useState(false);
+  const clearCaptions = useClearCaptions(liveHere?.id ?? null);
 
   // What was said before this page was opened. Held apart from the live lines
   // because it is refetched whole on a language switch; merging the two would
@@ -223,7 +227,19 @@ export default function CaptureClient() {
             <h2 className="font-[family-name:var(--font-archivo)] text-lg font-bold tracking-[-0.02em]">
               Caption monitor
             </h2>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap items-center gap-1">
+              {/* Live-ops escape hatch: a feed pointed at the wrong room leaves
+                  the wrong words on 3,000 phones, and waiting on a database
+                  console is not an option mid-session. */}
+              <button
+                type="button"
+                onClick={() => setConfirmClear(true)}
+                disabled={clearCaptions.isPending}
+                className="mr-2 flex items-center gap-1.5 rounded-full border border-summit-cream/30 px-3 py-1 text-xs text-summit-cream transition-colors hover:bg-summit-cream/10 disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+                {clearCaptions.isPending ? "Clearing" : "Clear captions"}
+              </button>
               {CAPTION_LANGUAGES.map((l) => (
                 <button
                   key={l.code}
@@ -271,6 +287,20 @@ export default function CaptureClient() {
           </div>
         </section>
       )}
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear captions?"
+        message={`This permanently deletes every caption line for "${liveHere?.title ?? "this session"}", in all languages, and removes the stored transcript and its export. Delegates watching now will see their screens clear. This cannot be undone.`}
+        confirmLabel="Clear captions"
+        cancelLabel="Keep them"
+        onCancel={() => setConfirmClear(false)}
+        onConfirm={() => {
+          setConfirmClear(false);
+          // clear what this page is showing too - the socket event tells the
+          // delegates, but this admin is not in a captions room
+          clearCaptions.mutate(undefined, { onSuccess: () => setLines([]) });
+        }}
+      />
     </div>
   );
 }
