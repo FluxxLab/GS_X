@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fmtSummitDate, fromSummitInput, summitDateKey, toSummitInput } from "@/lib/summit/time";
+import { fmtSummitDate, fmtSummitTime, fromSummitInput, summitDateKey, toSummitInput } from "@/lib/summit/time";
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -153,34 +153,48 @@ const inputCls =
       });
 
     /**
-     * The ripple: when the start time of an existing session moves, offer to
-     * move everything after it in the same room and day by the same amount.
-     * A keynote pushed back twenty minutes is then one edit, not six.
-     * Previewed here from the loaded agenda so the operator sees exactly
-     * what will move before saving; the API applies the same rule.
+     * One room holds one session at a time. This previews what the API's
+     * room clearing will do with the times in the form: every later session
+     * in the same room and day that the edit would land on is pushed just
+     * far enough to start when the one before it ends, and the push
+     * cascades. Sessions the edit does not reach stay where they are. Shown
+     * from the loaded agenda so the operator sees the exact new times before
+     * saving; the API applies the same rule and refuses a collision when the
+     * box is unticked.
      */
     const [shiftFollowing, setShiftFollowing] = useState(true);
     const ripple = useMemo(() => {
-      if (!session || !form.startsAt) return null;
-      const previousStart = new Date(session.startsAt).getTime();
-      const newStart = Date.parse(fromSummitInput(form.startsAt));
-      const deltaMin = Math.round((newStart - previousStart) / 60_000);
-      if (!Number.isFinite(deltaMin) || deltaMin === 0) return null;
-      const roomKey = session.room.trim().toLowerCase();
-      const affected = (sessions ?? [])
-        .filter(
-          (s) =>
-            s.id !== session.id &&
-            s.day === session.day &&
-            s.status !== "completed" &&
-            s.room.trim().toLowerCase() === roomKey &&
-            // anything that starts after this one, overlapping or not - the
-            // same rule as SessionsService.shiftFollowing
-            new Date(s.startsAt).getTime() > previousStart,
-        )
-        .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-      return { deltaMin, affected };
-    }, [session, form.startsAt, sessions]);
+      if (!session || !form.startsAt || !form.endsAt || !form.room) return null;
+      const start = Date.parse(fromSummitInput(form.startsAt));
+      const end = Date.parse(fromSummitInput(form.endsAt));
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+      const roomKey = form.room.trim().toLowerCase();
+      const inRoom = (sessions ?? []).filter(
+        (s) =>
+          s.id !== session.id &&
+          s.day === Number(form.day) &&
+          s.status !== "completed" &&
+          s.room.trim().toLowerCase() === roomKey,
+      );
+      const clashBefore =
+        inRoom.find((s) => Date.parse(s.startsAt) < start && Date.parse(s.endsAt) > start) ?? null;
+      const pushed: { session: Session; startsAt: string; endsAt: string }[] = [];
+      let prevEnd = end;
+      for (const s of inRoom
+        .filter((o) => Date.parse(o.startsAt) >= start)
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt))) {
+        let st = Date.parse(s.startsAt);
+        let en = Date.parse(s.endsAt);
+        if (st < prevEnd) {
+          const delta = prevEnd - st;
+          st += delta;
+          en += delta;
+          pushed.push({ session: s, startsAt: new Date(st).toISOString(), endsAt: new Date(en).toISOString() });
+        }
+        prevEnd = en;
+      }
+      return { pushed, clashBefore };
+    }, [session, form.startsAt, form.endsAt, form.room, form.day, sessions]);
 
     const submit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -198,8 +212,8 @@ const inputCls =
             await update.mutateAsync({
               id: session.id,
               ...payload,
-              // only meaningful when the end moved and there is something to move
-              shiftFollowing: Boolean(shiftFollowing && ripple && ripple.affected.length > 0),
+              // the API pushes by default; false is the explicit opt-out
+              shiftFollowing,
             });
         } else {
 
@@ -247,26 +261,33 @@ const inputCls =
         <input className={inputCls} placeholder="Type (e.g. Breakout Session)" required value={form.type} onChange={(e) => set("type", e.target.value)} />
         <input className={inputCls} placeholder="Audience (optional)" value={form.audience} onChange={(e) => set("audience", e.target.value)} />
       </div>
-      {ripple && (
+      {ripple?.clashBefore && (
+        <p className="rounded-xl border border-summit-cerise/30 bg-summit-cerise/10 px-4 py-3 text-sm text-summit-cream">
+          Starts before &ldquo;{ripple.clashBefore.title}&rdquo; ends at {fmtSummitTime(ripple.clashBefore.endsAt)} in {form.room}. Move that session first, or start this one later.
+        </p>
+      )}
+      {ripple && !ripple.clashBefore && ripple.pushed.length > 0 && (
         <label className="flex items-start gap-3 rounded-xl border border-summit-cerulean/25 bg-summit-cerulean/8 px-4 py-3 text-sm">
           <input
             type="checkbox"
             className="mt-0.5 accent-summit-cerise"
-            checked={shiftFollowing && ripple.affected.length > 0}
-            disabled={ripple.affected.length === 0}
+            checked={shiftFollowing}
             onChange={(e) => setShiftFollowing(e.target.checked)}
           />
           <span className="flex flex-col gap-1">
             <span className="text-summit-lilac">
-              {ripple.affected.length === 0
-                ? `Nothing after this in ${session?.room} today, so only this session moves.`
-                : `Also move the ${ripple.affected.length} session${ripple.affected.length === 1 ? "" : "s"} after this in ${session?.room} by ${ripple.deltaMin > 0 ? "+" : ""}${ripple.deltaMin} min`}
+              {`This lands on ${ripple.pushed.length} session${ripple.pushed.length === 1 ? "" : "s"} in ${form.room}. Push ${ripple.pushed.length === 1 ? "it" : "them"} out of the way:`}
             </span>
-            {ripple.affected.length > 0 && (
-              <span className="text-xs text-summit-smoke">
-                {ripple.affected.slice(0, 4).map((s) => s.title).join(" · ")}
-                {ripple.affected.length > 4 ? ` · +${ripple.affected.length - 4} more` : ""}
-              </span>
+            <span className="flex flex-col text-xs text-summit-smoke">
+              {ripple.pushed.slice(0, 4).map((p) => (
+                <span key={p.session.id}>
+                  {p.session.title} · {fmtSummitTime(p.session.startsAt)}–{fmtSummitTime(p.session.endsAt)} → {fmtSummitTime(p.startsAt)}–{fmtSummitTime(p.endsAt)}
+                </span>
+              ))}
+              {ripple.pushed.length > 4 ? <span>+{ripple.pushed.length - 4} more</span> : null}
+            </span>
+            {!shiftFollowing && (
+              <span className="text-xs text-summit-cream">Unticked, the save will be refused while they overlap.</span>
             )}
           </span>
         </label>
