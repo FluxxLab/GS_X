@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CalendarClock, Mic2, Search, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSearch } from "@/lib/summit/search";
+import { fmtSummitTime } from "@/lib/summit/time";
 
 interface Row {
   key: string;
@@ -14,9 +15,7 @@ interface Row {
   href: string;
 }
 
-function fmt(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-}
+const fmt = fmtSummitTime;
 
 export function CommandPalette() {
   const router = useRouter();

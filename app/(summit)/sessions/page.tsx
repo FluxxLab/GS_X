@@ -28,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fmtSummitDateHeading, fmtSummitTime, summitDateKey } from "@/lib/summit/time";
+import { dayHomes } from "@/lib/summit/summit-days";
 
 const STATUS_STYLES: Record<SessionStatus, string> = {
   scheduled: "bg-summit-lilac/10 text-summit-smoke",
@@ -35,9 +37,8 @@ const STATUS_STYLES: Record<SessionStatus, string> = {
   completed: "bg-summit-green/15 text-summit-green",
 };
 
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-}
+// Abuja time whether this renders on the Worker (UTC) or in the browser.
+const fmtTime = fmtSummitTime;
 
 /**
  * Matches a session against the search box.
@@ -157,9 +158,27 @@ export default function SessionsPage(){
       : 0;
 
     const matching = (sessions ?? []).filter((s) => matchesQuery(s, query));
-    /** Only days that still have a match, so a search does not leave behind a
-     *  row of empty day headings. */
-    const days = [...new Set(matching.map((s) => s.day))].sort();
+    /**
+     * Grouped by the Abuja calendar date, not by the `day` bucket. `day` is a
+     * free choice on the form and nothing makes it agree with startsAt, so a
+     * 7 Sept test session filed under Day 1 sat inside the real Day 1 and
+     * read as part of the programme. The date is what actually happened;
+     * the bucket is only a label on it.
+     *
+     * Only dates that still have a match, so a search does not leave behind
+     * a row of empty headings.
+     */
+    const byDate = new Map<string, Session[]>();
+    for (const s of matching) {
+      const key = summitDateKey(s.startsAt);
+      const list = byDate.get(key);
+      if (list) list.push(s);
+      else byDate.set(key, [s]);
+    }
+    const dates = [...byDate.keys()].sort();
+    // Read off the whole agenda rather than the filtered view, so a search
+    // cannot move a heading. Any other date claiming a day number is a stray.
+    const dayHome = dayHomes(sessions ?? []);
     const noMatches = query.trim().length > 0 && matching.length === 0;
 
     return (
@@ -433,21 +452,29 @@ export default function SessionsPage(){
           Couldn&apos;t load sessions — {(error as Error).message}
         </div>
       )}
-      {!isLoading && !error && days.length === 0 && (
+      {!isLoading && !error && dates.length === 0 && (
         <div className="glass-card p-5 text-sm text-summit-smoke">
           No sessions yet — create the first one above.
         </div>
       )}
 
-      {days.map((day) => (
-        <section key={day} className="glass-card p-5">
+      {dates.map((date) => {
+        const list = byDate.get(date)!;
+        const dayNumbers = [...new Set(list.map((s) => s.day))].sort();
+        // The heading earns "Day N" only when this date is where Day N lives.
+        const home = dayNumbers.length === 1 && dayHome.get(dayNumbers[0]) === date ? dayNumbers[0] : null;
+        return (
+        <section key={date} className="glass-card p-5">
           <h2 className="font-[family-name:var(--font-archivo)] text-lg font-bold tracking-[-0.02em]">
-            Day {day}
+            {home ? `Day ${home} · ` : ""}{fmtSummitDateHeading(date)}
           </h2>
+          {!home && (
+            <p className="mt-1 text-xs text-summit-cream">
+              Not a programme day. {list.length === 1 ? "This session is" : "These sessions are"} filed under Day {dayNumbers.join(" and ")}, so delegates see {list.length === 1 ? "it" : "them"} in that tab. Fix the date, or delete {list.length === 1 ? "it" : "them"} before the summit.
+            </p>
+          )}
           <ul className="mt-3 flex flex-col divide-y divide-summit-lilac/10">
-            {(sessions ?? [])
-              .filter((s) => s.day === day)
-              .filter((s) => matchesQuery(s, query))
+            {list
               .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
               .map((s) => (
                 <li key={s.id} className="flex items-center gap-4 py-3">
@@ -546,7 +573,8 @@ export default function SessionsPage(){
               ))}
           </ul>
         </section>
-      ))}
+        );
+      })}
     </div>
     );
 }

@@ -2,6 +2,8 @@
 
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import { summitDateKey } from "@/lib/summit/time";
+import { dayHomes, dayOfDate } from "@/lib/summit/summit-days";
 
 /**
  * The venue departures board.
@@ -68,6 +70,7 @@ const dayTimeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "sh
 const dayKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
 const clockFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 const dateFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
+const shortDateFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
 
 const fmtTime = (iso: string) => timeFmt.format(new Date(iso));
 const fmtRange = (s: BoardSession) => `${fmtTime(s.startsAt)} – ${fmtTime(s.endsAt)}`;
@@ -135,22 +138,31 @@ async function fetchBoard(): Promise<BoardSession[]> {
 // ---------------------------------------------------------------------------
 
 /**
- * Which day to show. The day whose sessions bracket the clock wins; before the
- * summit that is the first day, and between days it is whichever comes next.
+ * Which date to show, as an Abuja `YYYY-MM-DD` key.
+ *
+ * By date and not by the `day` bucket: `day` is a free choice on the form,
+ * so a 7 Sept test session filed under Day 1 used to land on the same board
+ * as the real 8 Sept programme, and the board called all of it "Day 1".
+ *
+ * An operator-set live session wins outright - whatever is live has to be on
+ * the board (FR-01). Failing that, the date whose sessions bracket the clock,
+ * from six hours before its first session until its last one ends, so a
+ * screen switched on early still shows the right date. Before the summit
+ * that is the first date; between dates it is whichever comes next.
  */
-function pickDay(sessions: BoardSession[], now: number): number | null {
-  const days = [...new Set(sessions.map((s) => s.day))].sort((a, b) => a - b);
-  if (days.length === 0) return null;
-  for (const d of days) {
-    const of = sessions.filter((s) => s.day === d);
+function pickDate(sessions: BoardSession[], now: number): string | null {
+  const live = sessions.find((s) => s.status === "live");
+  if (live) return summitDateKey(live.startsAt);
+  const dates = [...new Set(sessions.map((s) => summitDateKey(s.startsAt)))].sort();
+  if (dates.length === 0) return null;
+  for (const d of dates) {
+    const of = sessions.filter((s) => summitDateKey(s.startsAt) === d);
     const first = Math.min(...of.map((s) => +new Date(s.startsAt)));
     const last = Math.max(...of.map((s) => +new Date(s.endsAt)));
-    // a day "owns" the clock from six hours before its first session until
-    // its last one ends, so a screen switched on early still shows the right day
     if (now >= first - 6 * 3600_000 && now <= last) return d;
   }
-  const upcoming = days.find((d) => sessions.some((s) => s.day === d && +new Date(s.startsAt) > now));
-  return upcoming ?? days[days.length - 1];
+  const upcoming = dates.find((d) => sessions.some((s) => summitDateKey(s.startsAt) === d && +new Date(s.startsAt) > now));
+  return upcoming ?? dates[dates.length - 1];
 }
 
 function buildLanes(sessions: BoardSession[], now: number, roomOrder: string[] | null): RoomLane[] {
@@ -436,10 +448,16 @@ export default function BoardPage() {
     };
   }, [demo, ready]);
 
-  const day = useMemo(() => (sessions ? dayOverride ?? pickDay(sessions, now) : null), [sessions, now, dayOverride]);
+  const homes = useMemo(() => dayHomes(sessions ?? []), [sessions]);
+  // `?day=N` still works: it resolves to the date that day number lives on.
+  const date = useMemo(
+    () => (sessions ? (dayOverride !== null ? (homes.get(dayOverride) ?? null) : pickDate(sessions, now)) : null),
+    [sessions, now, dayOverride, homes],
+  );
+  const day = date !== null ? dayOfDate(homes, date) : null;
   const lanes = useMemo(
-    () => (sessions && day !== null ? queueLanes(buildLanes(sessions.filter((s) => s.day === day), now, roomOrder)) : []),
-    [sessions, day, now, roomOrder],
+    () => (sessions && date !== null ? queueLanes(buildLanes(sessions.filter((s) => summitDateKey(s.startsAt) === date), now, roomOrder)) : []),
+    [sessions, date, now, roomOrder],
   );
 
   // `now` is the ticking clock state, so this re-evaluates every second
@@ -468,7 +486,13 @@ export default function BoardPage() {
           <p className="text-[1vw] uppercase tracking-[0.3em] text-summit-smoke">Gender &amp; Inclusion Summit 2026 · Abuja</p>
           <h1 className="mt-[0.3vw] font-[family-name:var(--font-archivo)] text-[3vw] font-bold leading-none tracking-[-0.03em]">
             Venue board
-            {day !== null && <span className="ml-[1.2vw] text-summit-cerise">Day {day}</span>}
+            {/* "Day N" only when this date is where Day N lives; a stray
+                date, such as a pre-summit test session, shows its date. */}
+            {day !== null ? (
+              <span className="ml-[1.2vw] text-summit-cerise">Day {day}</span>
+            ) : (
+              date !== null && <span className="ml-[1.2vw] text-summit-cerise">{shortDateFmt.format(new Date(`${date}T12:00:00+01:00`))}</span>
+            )}
           </h1>
         </div>
         <div className="text-right">

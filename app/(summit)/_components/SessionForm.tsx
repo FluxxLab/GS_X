@@ -17,13 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-/** `YYYY-MM-DDTHH:mm` in the operator's local time, the only shape a
- *  datetime-local input accepts. */
-function toLocalInput(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+import { fmtSummitDate, fromSummitInput, summitDateKey, toSummitInput } from "@/lib/summit/time";
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -39,8 +33,10 @@ const inputCls =
         title: session?.title ?? "",
     description: session?.description ?? "",
     day: session?.day ?? 1,
-    startsAt: session?.startsAt?.slice(0, 16) ?? "",
-    endsAt: session?.endsAt?.slice(0, 16) ?? "",
+    // Abuja wall-clock, not a slice of the UTC string: slicing put UTC hours
+    // in the box, and saving them back as local time lost an hour per edit.
+    startsAt: session?.startsAt ? toSummitInput(session.startsAt) : "",
+    endsAt: session?.endsAt ? toSummitInput(session.endsAt) : "",
     room: session?.room ?? "",
     track: (session?.track ?? "") as Track,
     type: session?.type ?? "Breakout Session",
@@ -67,20 +63,19 @@ const inputCls =
   const dayLabel = (d: number) => {
     // The day being edited reads from the form, so picking today shows today
     // rather than being contradicted by the label.
-    const iso = d === Number(form.day) && form.startsAt ? form.startsAt : dayDates.get(d);
+    const iso = d === Number(form.day) && form.startsAt ? fromSummitInput(form.startsAt) : dayDates.get(d);
     if (!iso) return `Day ${d}`;
-    const when = new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-    return `Day ${d} · ${when}`;
+    return `Day ${d} · ${fmtSummitDate(iso)}`;
   };
 
   /**
    * The reverse lookup: which day number a calendar date already belongs to.
-   * Local date, not the UTC slice of the ISO string, so an early-morning
+   * Abuja date, not the UTC slice of the ISO string, so an early-morning
    * session does not land on the day before.
    */
   const dayByDate = useMemo(() => {
     const m = new Map<string, number>();
-    for (const s of sessions ?? []) m.set(toLocalInput(new Date(s.startsAt)).slice(0, 10), s.day);
+    for (const s of sessions ?? []) m.set(summitDateKey(s.startsAt), s.day);
     return m;
   }, [sessions]);
 
@@ -113,7 +108,7 @@ const inputCls =
       const start = new Date();
       start.setMinutes(0, 0, 0);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
-      return { ...f, startsAt: toLocalInput(start), endsAt: toLocalInput(end) };
+      return { ...f, startsAt: toSummitInput(start), endsAt: toSummitInput(end) };
     });
   }, [session]);
   const createSpeaker = useCreateSpeaker();
@@ -154,8 +149,9 @@ const inputCls =
     const [shiftFollowing, setShiftFollowing] = useState(true);
     const ripple = useMemo(() => {
       if (!session || !form.endsAt) return null;
+      const previousStart = new Date(session.startsAt).getTime();
       const previousEnd = new Date(session.endsAt).getTime();
-      const newEnd = new Date(form.endsAt).getTime();
+      const newEnd = Date.parse(fromSummitInput(form.endsAt));
       const deltaMin = Math.round((newEnd - previousEnd) / 60_000);
       if (!Number.isFinite(deltaMin) || deltaMin === 0) return null;
       const roomKey = session.room.trim().toLowerCase();
@@ -166,7 +162,9 @@ const inputCls =
             s.day === session.day &&
             s.status !== "completed" &&
             s.room.trim().toLowerCase() === roomKey &&
-            new Date(s.startsAt).getTime() >= previousEnd,
+            // anything that starts after this one, overlapping or not - the
+            // same rule as SessionsService.shiftFollowing
+            new Date(s.startsAt).getTime() > previousStart,
         )
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
       return { deltaMin, affected };
@@ -177,8 +175,10 @@ const inputCls =
         const payload = {
             ...form,
             day: Number(form.day),
-            startsAt: new Date(form.startsAt).toISOString(),
-            endsAt: new Date(form.endsAt).toISOString(),
+            // Stamp the summit offset rather than letting the browser guess
+            // the zone of an offset-less string.
+            startsAt: fromSummitInput(form.startsAt),
+            endsAt: fromSummitInput(form.endsAt),
             status: session?.status ?? ("scheduled" as const),
             speakerIds,
         };
