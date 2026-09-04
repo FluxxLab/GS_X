@@ -485,7 +485,7 @@ export default function BoardPage() {
         <div>
           <p className="text-[1vw] uppercase tracking-[0.3em] text-summit-smoke">Gender &amp; Inclusion Summit 2026 · Abuja</p>
           <h1 className="mt-[0.3vw] font-[family-name:var(--font-archivo)] text-[3vw] font-bold leading-none tracking-[-0.03em]">
-            Venue board
+            Agenda board
             {/* "Day N" only when this date is where Day N lives; a stray
                 date, such as a pre-summit test session, shows its date. */}
             {day !== null ? (
