@@ -34,8 +34,23 @@ jobs:
 
       # Fails the build if a high/critical CVE lands in a PRODUCTION dependency.
       # Dev-only tooling advisories are excluded (they never ship).
+      #
+      # --ignore-registry-errors exits 0 when the registry itself is
+      # unreachable. pnpm already retries the fetch twice; when all three
+      # attempts time out (ERR_SOCKET_TIMEOUT from npmjs.org failed this job on
+      # 4 Sep 2026) the FetchError would otherwise fail the build for network
+      # weather rather than for a vulnerability. A real advisory still fails:
+      # the flag only swallows errors raised before any report is produced.
+      #
+      # The grep turns that silent pass into a run annotation - an unaudited
+      # build should be visible, not indistinguishable from a clean one.
       - name: Security audit (production deps)
-        run: pnpm audit --prod --audit-level high
+        run: |
+          set -o pipefail
+          pnpm audit --prod --audit-level high --ignore-registry-errors 2>&1 | tee "$RUNNER_TEMP/audit.log"
+          if grep -qiE 'ERR_SOCKET_TIMEOUT|FetchError|Socket timeout|ENOTFOUND|ECONNRESET|socket hang up' "$RUNNER_TEMP/audit.log"; then
+            echo "::warning title=Audit skipped::The npm registry was unreachable, so production dependencies were not audited in this run."
+          fi
 
       # Blocking: fails on error-level rules. `any`, unused-vars, and the React
       # Compiler readiness rules are warnings (tracked debt) and do not block.
