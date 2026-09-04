@@ -468,11 +468,7 @@ export default function SessionsPage(){
           <h2 className="font-[family-name:var(--font-archivo)] text-lg font-bold tracking-[-0.02em]">
             {home ? `Day ${home} · ` : ""}{fmtSummitDateHeading(date)}
           </h2>
-          {!home && (
-            <p className="mt-1 text-xs text-summit-cream">
-              Not a programme day. {list.length === 1 ? "This session is" : "These sessions are"} filed under Day {dayNumbers.join(" and ")}, so delegates see {list.length === 1 ? "it" : "them"} in that tab. Fix the date, or delete {list.length === 1 ? "it" : "them"} before the summit.
-            </p>
-          )}
+         
           <ul className="mt-3 flex flex-col divide-y divide-summit-lilac/10">
             {list
               .sort((a, b) => a.startsAt.localeCompare(b.startsAt))

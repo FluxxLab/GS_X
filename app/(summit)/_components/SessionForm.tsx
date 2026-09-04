@@ -140,19 +140,31 @@ const inputCls =
     const set = (k: string, v: string | number) => setForm((f) => ({...f, [k] : v}));
 
     /**
-     * The ripple: when the end time of an existing session moves, offer to
+     * Moving the start keeps the session's length: the end comes along by
+     * the same amount. A delay is entered once, on the start, and the end
+     * stays editable afterwards for a session that is also being shortened.
+     */
+    const setStart = (v: string) =>
+      setForm((f) => {
+        if (!f.startsAt || !f.endsAt || !v) return { ...f, startsAt: v };
+        const shift = Date.parse(fromSummitInput(v)) - Date.parse(fromSummitInput(f.startsAt));
+        const end = Date.parse(fromSummitInput(f.endsAt)) + shift;
+        return { ...f, startsAt: v, endsAt: toSummitInput(new Date(end)) };
+      });
+
+    /**
+     * The ripple: when the start time of an existing session moves, offer to
      * move everything after it in the same room and day by the same amount.
-     * A keynote that runs twenty minutes over is then one edit, not six.
+     * A keynote pushed back twenty minutes is then one edit, not six.
      * Previewed here from the loaded agenda so the operator sees exactly
      * what will move before saving; the API applies the same rule.
      */
     const [shiftFollowing, setShiftFollowing] = useState(true);
     const ripple = useMemo(() => {
-      if (!session || !form.endsAt) return null;
+      if (!session || !form.startsAt) return null;
       const previousStart = new Date(session.startsAt).getTime();
-      const previousEnd = new Date(session.endsAt).getTime();
-      const newEnd = Date.parse(fromSummitInput(form.endsAt));
-      const deltaMin = Math.round((newEnd - previousEnd) / 60_000);
+      const newStart = Date.parse(fromSummitInput(form.startsAt));
+      const deltaMin = Math.round((newStart - previousStart) / 60_000);
       if (!Number.isFinite(deltaMin) || deltaMin === 0) return null;
       const roomKey = session.room.trim().toLowerCase();
       const affected = (sessions ?? [])
@@ -168,7 +180,7 @@ const inputCls =
         )
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
       return { deltaMin, affected };
-    }, [session, form.endsAt, sessions]);
+    }, [session, form.startsAt, sessions]);
 
     const submit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -219,7 +231,7 @@ const inputCls =
             ))}
           </SelectContent>
         </Select>
-        <input className={inputCls} type="datetime-local" required value={form.startsAt} onChange={(e) => set("startsAt", e.target.value)} />
+        <input className={inputCls} type="datetime-local" required value={form.startsAt} onChange={(e) => setStart(e.target.value)} />
         <input className={inputCls} type="datetime-local" required value={form.endsAt} onChange={(e) => set("endsAt", e.target.value)} />
         <input className={inputCls} placeholder="Room" required value={form.room} onChange={(e) => set("room", e.target.value)} />
         <Select value={form.track} onValueChange={(val) => set("track", val)}>
