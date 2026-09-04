@@ -80,10 +80,16 @@ export function useBulkCreateSessions(){
     });
 }
 
+/**
+ * `shiftFollowing` ripples a change in end time down the room: every later
+ * session in the same room and day moves by the same amount (see the API's
+ * SessionsService.shiftFollowing). The whole agenda is refetched afterwards
+ * because the response is only the edited session, not the ones it moved.
+ */
 export function useUpdateSession(){
     const qc  = useQueryClient();
     return useMutation({
-        mutationFn: ({id, ...input}: Partial<SessionInput> & {id: string}) =>
+        mutationFn: ({id, ...input}: Partial<SessionInput> & {id: string; shiftFollowing?: boolean}) =>
             api<Session>(`/sessions/${id}`, {method: "PATCH", body: JSON.stringify(input)}),
         onSuccess: () => qc.invalidateQueries({queryKey: ["sessions"]}),
     });

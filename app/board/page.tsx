@@ -52,6 +52,13 @@ interface RoomLane {
 }
 
 const POLL_MS = 20_000;
+/**
+ * The board is a queue, not a directory: five rooms at a time, the ones with
+ * something happening soonest. A room whose session ends with nothing after
+ * it leaves the board and the next room moves up. Five is what stays legible
+ * from the back of a hall on a 1080p screen.
+ */
+const MAX_ROWS = 5;
 /** Beyond this a countdown stops meaning anything; show the start time. */
 const FAR_MS = 6 * 3600_000;
 const TZ = "Africa/Lagos";
@@ -168,6 +175,24 @@ function buildLanes(sessions: BoardSession[], now: number, roomOrder: string[] |
     );
     return { room, now: current, next: after[0] ?? null, later: after[1] ?? null, isLive: Boolean(live) };
   });
+}
+
+/**
+ * The queue order: live rooms first, then whichever room has something on or
+ * starting soonest. Rooms with nothing left today drop out entirely rather
+ * than sit on the board saying so, which is what frees a row for the next
+ * one to move up into.
+ */
+function queueLanes(lanes: RoomLane[]): RoomLane[] {
+  const startOf = (l: RoomLane) => +new Date((l.now ?? l.next)!.startsAt);
+  return lanes
+    .filter((l) => l.now || l.next)
+    .sort((a, b) => {
+      if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+      if (Boolean(a.now) !== Boolean(b.now)) return a.now ? -1 : 1;
+      return startOf(a) - startOf(b);
+    })
+    .slice(0, MAX_ROWS);
 }
 
 // ---------------------------------------------------------------------------
@@ -413,7 +438,7 @@ export default function BoardPage() {
 
   const day = useMemo(() => (sessions ? dayOverride ?? pickDay(sessions, now) : null), [sessions, now, dayOverride]);
   const lanes = useMemo(
-    () => (sessions && day !== null ? buildLanes(sessions.filter((s) => s.day === day), now, roomOrder) : []),
+    () => (sessions && day !== null ? queueLanes(buildLanes(sessions.filter((s) => s.day === day), now, roomOrder)) : []),
     [sessions, day, now, roomOrder],
   );
 

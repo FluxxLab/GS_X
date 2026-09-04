@@ -143,6 +143,35 @@ const inputCls =
   }
 
     const set = (k: string, v: string | number) => setForm((f) => ({...f, [k] : v}));
+
+    /**
+     * The ripple: when the end time of an existing session moves, offer to
+     * move everything after it in the same room and day by the same amount.
+     * A keynote that runs twenty minutes over is then one edit, not six.
+     * Previewed here from the loaded agenda so the operator sees exactly
+     * what will move before saving; the API applies the same rule.
+     */
+    const [shiftFollowing, setShiftFollowing] = useState(true);
+    const ripple = useMemo(() => {
+      if (!session || !form.endsAt) return null;
+      const previousEnd = new Date(session.endsAt).getTime();
+      const newEnd = new Date(form.endsAt).getTime();
+      const deltaMin = Math.round((newEnd - previousEnd) / 60_000);
+      if (!Number.isFinite(deltaMin) || deltaMin === 0) return null;
+      const roomKey = session.room.trim().toLowerCase();
+      const affected = (sessions ?? [])
+        .filter(
+          (s) =>
+            s.id !== session.id &&
+            s.day === session.day &&
+            s.status !== "completed" &&
+            s.room.trim().toLowerCase() === roomKey &&
+            new Date(s.startsAt).getTime() >= previousEnd,
+        )
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+      return { deltaMin, affected };
+    }, [session, form.endsAt, sessions]);
+
     const submit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const payload = {
@@ -154,11 +183,16 @@ const inputCls =
             speakerIds,
         };
         if(session){
-            await update.mutateAsync({id: session.id, ...payload});
+            await update.mutateAsync({
+              id: session.id,
+              ...payload,
+              // only meaningful when the end moved and there is something to move
+              shiftFollowing: Boolean(shiftFollowing && ripple && ripple.affected.length > 0),
+            });
         } else {
-           
+
             await create.mutateAsync(payload);
-            
+
         }
         onClose();
     };
@@ -201,6 +235,30 @@ const inputCls =
         <input className={inputCls} placeholder="Type (e.g. Breakout Session)" required value={form.type} onChange={(e) => set("type", e.target.value)} />
         <input className={inputCls} placeholder="Audience (optional)" value={form.audience} onChange={(e) => set("audience", e.target.value)} />
       </div>
+      {ripple && (
+        <label className="flex items-start gap-3 rounded-xl border border-summit-cerulean/25 bg-summit-cerulean/8 px-4 py-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-summit-cerise"
+            checked={shiftFollowing && ripple.affected.length > 0}
+            disabled={ripple.affected.length === 0}
+            onChange={(e) => setShiftFollowing(e.target.checked)}
+          />
+          <span className="flex flex-col gap-1">
+            <span className="text-summit-lilac">
+              {ripple.affected.length === 0
+                ? `Nothing after this in ${session?.room} today, so only this session moves.`
+                : `Also move the ${ripple.affected.length} session${ripple.affected.length === 1 ? "" : "s"} after this in ${session?.room} by ${ripple.deltaMin > 0 ? "+" : ""}${ripple.deltaMin} min`}
+            </span>
+            {ripple.affected.length > 0 && (
+              <span className="text-xs text-summit-smoke">
+                {ripple.affected.slice(0, 4).map((s) => s.title).join(" · ")}
+                {ripple.affected.length > 4 ? ` · +${ripple.affected.length - 4} more` : ""}
+              </span>
+            )}
+          </span>
+        </label>
+      )}
       {err && <p className="text-sm text-summit-cream">{(err as Error).message}</p>}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
