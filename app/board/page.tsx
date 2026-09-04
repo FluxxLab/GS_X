@@ -6,12 +6,15 @@ import { useEffect, useMemo, useState } from "react";
 /**
  * The venue departures board.
  *
- * Read from the back of a hall, on a TV in the wings. The live session is the
- * one thing everyone needs, so it takes the top third of the screen at a size
- * that carries; the other rooms are listed five at a time underneath and the
- * pages turn on their own, the way an airport board cycles when there are
- * more flights than rows. Thirteen rooms squeezed into thirteen rows was the
- * first version, and nobody could read it from a metre away.
+ * One row per room, read from a few metres away on a TV in the wings: what is
+ * live, how long it has left, what is next and when it starts. The shape is
+ * borrowed from an airport board because that is the one screen everyone
+ * already knows how to read at a glance, and the motion is borrowed from the
+ * same place - a row flips when its session changes, digits roll when they
+ * tick, pages turn on their own when there are more rooms than rows.
+ *
+ * Live rooms are pinned to the top and drawn taller than the rest, so the
+ * thing everyone is asking about is the biggest thing on the screen.
  *
  * Public and unauthenticated. It reads GET /sessions/board through the same
  * proxy the console uses, but deliberately not through lib/summit/api, which
@@ -52,7 +55,7 @@ interface RoomLane {
 }
 
 const POLL_MS = 20_000;
-/** Rows per page in the room list, and how long a page stays up. */
+/** Rows per page, and how long a page stays up before turning. */
 const PAGE_SIZE = 4;
 const PAGE_MS = 12_000;
 /** Beyond this a countdown stops meaning anything; show the start time. */
@@ -89,6 +92,12 @@ function whenLabel(iso: string, now: number): { label: string; value: string; ro
   if (ms <= FAR_MS) return { label: "In", value: fmtRemaining(ms), rolling: true };
   const sameDay = dayKeyFmt.format(new Date(iso)) === dayKeyFmt.format(new Date(now));
   return { label: sameDay ? "At" : "", value: sameDay ? fmtTime(iso) : dayTimeFmt.format(new Date(iso)), rolling: false };
+}
+
+function speakerLine(s: BoardSession): string {
+  const names = (s.speakers ?? []).map((x) => x.name).filter(Boolean);
+  if (names.length === 0) return "";
+  return names.slice(0, 3).join("  ·  ") + (names.length > 3 ? `  +${names.length - 3}` : "");
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +189,21 @@ function buildLanes(sessions: BoardSession[], now: number, roomOrder: string[] |
   });
 }
 
+/**
+ * Live rooms first, then whoever starts soonest. Rooms with nothing left today
+ * drop off the board rather than sit there saying so.
+ */
+function orderLanes(lanes: RoomLane[]): RoomLane[] {
+  const startOf = (l: RoomLane) => +new Date((l.now ?? l.next)!.startsAt);
+  return lanes
+    .filter((l) => l.now || l.next)
+    .sort((a, b) => {
+      if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+      if (Boolean(a.now) !== Boolean(b.now)) return a.now ? -1 : 1;
+      return startOf(a) - startOf(b);
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Motion primitives
 // ---------------------------------------------------------------------------
@@ -222,7 +246,7 @@ function When({ iso, now, size, accent }: { iso: string; now: number; size: stri
   const cls = `font-[family-name:var(--font-archivo)] ${size} font-bold leading-none tabular-nums ${accent ? "text-summit-cerulean" : "text-summit-lilac"}`;
   return (
     <span className="flex items-baseline gap-[0.4vw] whitespace-nowrap">
-      {w.label && <span className="text-[0.9vw] uppercase tracking-[0.18em] text-summit-smoke">{w.label}</span>}
+      {w.label && <span className="text-[0.95vw] uppercase tracking-[0.18em] text-summit-smoke">{w.label}</span>}
       {w.rolling ? <Rolling text={w.value} className={cls} /> : <span className={cls}>{w.value}</span>}
     </span>
   );
@@ -232,189 +256,134 @@ function LiveDot() {
   return (
     <span className="relative inline-flex h-[0.75em] w-[0.75em]">
       <motion.span
-        className="absolute inset-0 rounded-full bg-summit-cerise"
+        className="absolute inset-0 rounded-full bg-white"
         animate={{ scale: [1, 2.2], opacity: [0.7, 0] }}
         transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
       />
-      <span className="relative inline-flex h-full w-full rounded-full bg-summit-cerise" />
+      <span className="relative inline-flex h-full w-full rounded-full bg-white" />
     </span>
   );
 }
 
-function speakerLine(s: BoardSession): string {
-  const names = s.speakers.map((x) => x.name).filter(Boolean);
-  if (names.length === 0) return "";
-  return names.slice(0, 3).join("  ·  ") + (names.length > 3 ? `  +${names.length - 3}` : "");
+/**
+ * The lane's timeline, along the bottom edge of the whole card. Rendered by
+ * the card rather than inside the Now cell: the cell flips with a 3D
+ * transform, and a transform makes an element the containing block for its
+ * absolute descendants, which would pin the bar to that one column.
+ */
+function LaneProgress({ session, now }: { session: BoardSession | null; now: number }) {
+  if (!session) return null;
+  const start = +new Date(session.startsAt);
+  const end = +new Date(session.endsAt);
+  const progress = Math.min(1, Math.max(0, (now - start) / Math.max(1, end - start)));
+  const overrun = now > end;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[0.45vw] bg-summit-lilac/8">
+      <motion.div
+        className={`h-full ${overrun ? "bg-summit-cream" : "bg-summit-cerise"}`}
+        initial={false}
+        animate={{ width: `${progress * 100}%` }}
+        transition={{ duration: 0.9, ease: "linear" }}
+      />
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
-// Hero: the live session(s), readable from the back of the hall
+// Cells
 // ---------------------------------------------------------------------------
 
-function HeroCard({ lane, now, wide }: { lane: RoomLane; now: number; wide: boolean }) {
+function NowCell({ lane, now }: { lane: RoomLane; now: number }) {
   const s = lane.now;
-  if (!s) return null;
-  const start = +new Date(s.startsAt);
-  const end = +new Date(s.endsAt);
-  const progress = Math.min(1, Math.max(0, (now - start) / Math.max(1, end - start)));
-  const remaining = end - now;
+  if (!s) {
+    // Between sessions: show what the wait is for rather than an empty cell.
+    return (
+      <motion.div key="idle" {...flip} className="flex h-full flex-col justify-center gap-[0.3vw]">
+        <p className="text-[1.05vw] uppercase tracking-[0.22em] text-summit-smoke">{lane.next ? "Break" : "No further sessions"}</p>
+        {lane.next && <p className="text-[1.6vw] text-summit-lilac/70">Doors open {fmtTime(lane.next.startsAt)}</p>}
+      </motion.div>
+    );
+  }
+  const remaining = +new Date(s.endsAt) - now;
   const overrun = remaining < 0;
+  const big = lane.isLive;
   const speakers = speakerLine(s);
-
   return (
-    <motion.article
-      key={s.id}
-      {...flip}
-      className={`glass-card relative flex min-w-0 flex-col justify-center overflow-hidden px-[2.2vw] py-[1.6vw] ${
-        lane.isLive
-          ? "border-summit-cerise/40 shadow-[0_0_0_1px_rgb(229_37_154/0.2),0_30px_80px_rgb(229_37_154/0.18)]"
-          : "border-summit-lilac/15"
-      }`}
-    >
-      <div className="flex items-center gap-[1vw]">
+    <motion.div key={s.id} {...flip} className="flex h-full flex-col justify-center gap-[0.3vw]">
+      <div className="flex items-center gap-[0.8vw]">
         {lane.isLive ? (
-          <span className="inline-flex items-center gap-[0.6vw] rounded-full bg-summit-cerise px-[1.1vw] py-[0.35vw] text-[1.05vw] font-bold uppercase tracking-[0.2em] text-white">
-            <LiveDot /> Live now
+          <span className="inline-flex shrink-0 items-center gap-[0.55vw] whitespace-nowrap rounded-full bg-summit-cerise px-[1vw] py-[0.3vw] text-[1vw] font-bold uppercase tracking-[0.2em] text-white">
+            <LiveDot /> Live
           </span>
         ) : (
-          <span className="inline-flex items-center rounded-full bg-summit-lilac/12 px-[1.1vw] py-[0.35vw] text-[1.05vw] font-bold uppercase tracking-[0.2em] text-summit-lilac/85">
+          <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-summit-lilac/12 px-[1vw] py-[0.3vw] text-[1vw] font-bold uppercase tracking-[0.2em] text-summit-lilac/85">
             In progress
           </span>
         )}
-        <span className="font-[family-name:var(--font-archivo)] text-[1.5vw] font-bold uppercase tracking-[0.08em] text-summit-lilac">
-          {lane.room}
-        </span>
-        <span className="text-[1.15vw] tabular-nums text-summit-smoke">{fmtRange(s)}</span>
-      </div>
-
-      <div className="mt-[0.9vw] flex items-end justify-between gap-[3vw]">
-        <div className="min-w-0 flex-1">
-          <h2
-            className={`line-clamp-2 font-[family-name:var(--font-archivo)] font-bold leading-[1.05] tracking-[-0.025em] ${
-              wide ? "text-[3.4vw]" : "text-[2.5vw]"
-            }`}
-          >
-            {s.title}
-          </h2>
-          {speakers && <p className="mt-[0.6vw] truncate text-[1.35vw] text-summit-smoke">{speakers}</p>}
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[1vw] uppercase tracking-[0.25em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</p>
+        <span className="shrink-0 whitespace-nowrap text-[1.15vw] tabular-nums text-summit-smoke">{fmtRange(s)}</span>
+        <span className="ml-auto flex items-baseline gap-[0.5vw] whitespace-nowrap pr-[0.6vw]">
+          <span className="text-[0.95vw] uppercase tracking-[0.18em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
           <Rolling
             text={fmtRemaining(Math.abs(remaining))}
-            className={`font-[family-name:var(--font-archivo)] font-bold leading-none tabular-nums ${wide ? "text-[4.2vw]" : "text-[3.2vw]"} ${
+            className={`font-[family-name:var(--font-archivo)] font-bold leading-none tabular-nums ${big ? "text-[2.6vw]" : "text-[1.9vw]"} ${
               overrun ? "text-summit-cream" : "text-summit-lilac"
             }`}
           />
-        </div>
-      </div>
-
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[0.5vw] bg-summit-lilac/8">
-        <motion.div
-          className={`h-full ${overrun ? "bg-summit-cream" : "bg-summit-cerise"}`}
-          initial={false}
-          animate={{ width: `${progress * 100}%` }}
-          transition={{ duration: 0.9, ease: "linear" }}
-        />
-      </div>
-    </motion.article>
-  );
-}
-
-/** Nothing live anywhere: the soonest session across the venue takes the hero. */
-function UpNextHero({ lane, now }: { lane: RoomLane; now: number }) {
-  const s = lane.next;
-  if (!s) return null;
-  const speakers = speakerLine(s);
-  return (
-    <motion.article key={s.id} {...flip} className="glass-card relative flex min-w-0 flex-col justify-center overflow-hidden px-[2.2vw] py-[1.6vw]">
-      <div className="flex items-center gap-[1vw]">
-        <span className="inline-flex items-center rounded-full bg-summit-cerulean px-[1.1vw] py-[0.35vw] text-[1.05vw] font-bold uppercase tracking-[0.2em] text-summit-violet">
-          Up next
         </span>
-        <span className="font-[family-name:var(--font-archivo)] text-[1.5vw] font-bold uppercase tracking-[0.08em]">{lane.room}</span>
-        <span className="text-[1.15vw] tabular-nums text-summit-smoke">{fmtRange(s)}</span>
       </div>
-      <div className="mt-[0.9vw] flex items-end justify-between gap-[3vw]">
-        <div className="min-w-0 flex-1">
-          <h2 className="line-clamp-2 font-[family-name:var(--font-archivo)] text-[3.4vw] font-bold leading-[1.05] tracking-[-0.025em]">{s.title}</h2>
-          {speakers && <p className="mt-[0.6vw] truncate text-[1.35vw] text-summit-smoke">{speakers}</p>}
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[1vw] uppercase tracking-[0.25em] text-summit-smoke">Starts</p>
-          <When iso={s.startsAt} now={now} size="text-[4.2vw]" accent />
-        </div>
-      </div>
-    </motion.article>
+      <h2
+        className={`line-clamp-2 font-[family-name:var(--font-archivo)] font-bold leading-[1.08] tracking-[-0.02em] ${
+          big ? "text-[2.25vw]" : "text-[1.85vw]"
+        }`}
+      >
+        {s.title}
+      </h2>
+      {speakers && <p className={`truncate text-summit-smoke ${big ? "text-[1.3vw]" : "text-[1.1vw]"}`}>{speakers}</p>}
+    </motion.div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// The room list, five rows a page
-// ---------------------------------------------------------------------------
-
-function Row({ lane, now }: { lane: RoomLane; now: number }) {
-  const next = lane.now && !lane.isLive ? lane.now : lane.next;
-  const then = lane.now && !lane.isLive ? lane.next : lane.later;
-  const inProgress = Boolean(lane.now && !lane.isLive);
+function NextCell({ session, now, label }: { session: BoardSession | null; now: number; label: "Next" | "Then" }) {
+  if (!session) {
+    return (
+      <motion.div key={`${label}-empty`} {...flip} className="flex h-full items-center">
+        <p className="text-[1.1vw] text-summit-smoke/40">—</p>
+      </motion.div>
+    );
+  }
+  const isNext = label === "Next";
+  const soon = +new Date(session.startsAt) - now <= 10 * 60_000;
+  const speakers = speakerLine(session);
   return (
-    <motion.article
-      layout
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -18 }}
-      transition={{ duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }}
-      className="glass-card grid min-h-0 flex-1 grid-cols-[15vw_1fr_0.75fr] items-center gap-[2vw] overflow-hidden px-[1.6vw] py-[0.6vw]"
-    >
-      <p className="truncate font-[family-name:var(--font-archivo)] text-[1.6vw] font-bold leading-[1.05] tracking-[-0.02em]">{lane.room}</p>
-
-      <div className="min-w-0">
-        {next ? (
-          <>
-            <div className="flex items-center gap-[0.7vw]">
-              <span
-                className={`rounded-full px-[0.8vw] py-[0.2vw] text-[0.85vw] font-semibold uppercase tracking-[0.18em] ${
-                  inProgress ? "bg-summit-lilac/12 text-summit-lilac/85" : "bg-summit-cerulean/15 text-summit-cerulean"
-                }`}
-              >
-                {inProgress ? "In progress" : "Next"}
-              </span>
-              <span className="text-[1vw] tabular-nums text-summit-smoke">{fmtRange(next)}</span>
-              <span className="ml-auto pr-[0.4vw]">
-                {inProgress ? (
-                  <span className="flex items-baseline gap-[0.4vw] whitespace-nowrap">
-                    <span className="text-[0.9vw] uppercase tracking-[0.18em] text-summit-smoke">Ends in</span>
-                    <Rolling text={fmtRemaining(Math.max(0, +new Date(next.endsAt) - now))} className="font-[family-name:var(--font-archivo)] text-[1.5vw] font-bold leading-none tabular-nums" />
-                  </span>
-                ) : (
-                  <When iso={next.startsAt} now={now} size="text-[1.5vw]" accent={+new Date(next.startsAt) - now <= 10 * 60_000} />
-                )}
-              </span>
-            </div>
-            <h3 className="mt-[0.2vw] truncate font-[family-name:var(--font-archivo)] text-[1.45vw] font-bold leading-[1.1] tracking-[-0.015em]">{next.title}</h3>
-            {speakerLine(next) && <p className="truncate text-[0.95vw] text-summit-smoke">{speakerLine(next)}</p>}
-          </>
-        ) : (
-          <p className="text-[1vw] uppercase tracking-[0.2em] text-summit-smoke/60">No further sessions</p>
+    <motion.div key={session.id} {...flip} className="flex h-full flex-col justify-center gap-[0.35vw]">
+      <div className="flex items-center gap-[0.7vw]">
+        <span
+          className={`rounded-full px-[0.9vw] py-[0.25vw] text-[0.95vw] font-semibold uppercase tracking-[0.18em] ${
+            isNext ? "bg-summit-cerulean/18 text-summit-cerulean" : "bg-summit-lilac/8 text-summit-smoke"
+          }`}
+        >
+          {label}
+        </span>
+        <span className="text-[1.1vw] tabular-nums text-summit-smoke">{fmtRange(session)}</span>
+        {isNext && (
+          <span className="ml-auto pr-[0.6vw]">
+            <When iso={session.startsAt} now={now} size="text-[1.7vw]" accent={soon} />
+          </span>
         )}
       </div>
-
-      <div className="min-w-0 border-l border-summit-lilac/10 pl-[1.6vw]">
-        {then ? (
-          <>
-            <p className="text-[0.95vw] tabular-nums text-summit-smoke">
-              <span className="mr-[0.6vw] font-semibold uppercase tracking-[0.18em] text-summit-smoke/80">Then</span>
-              {fmtTime(then.startsAt)}
-            </p>
-            <h3 className="mt-[0.15vw] truncate font-[family-name:var(--font-archivo)] text-[1.2vw] font-bold leading-[1.1] text-summit-lilac/75">{then.title}</h3>
-          </>
-        ) : (
-          <p className="text-[1vw] text-summit-smoke/40">—</p>
-        )}
-      </div>
-    </motion.article>
+      <h3
+        className={`font-[family-name:var(--font-archivo)] font-bold leading-[1.1] tracking-[-0.015em] ${
+          isNext ? "line-clamp-1 text-[1.65vw] text-summit-lilac" : "line-clamp-2 text-[1.3vw] text-summit-lilac/75"
+        }`}
+      >
+        {session.title}
+      </h3>
+      {isNext && speakers && <p className="truncate text-[1.05vw] text-summit-smoke">{speakers}</p>}
+    </motion.div>
   );
 }
+
+const COLS = "grid-cols-[15vw_1.25fr_1fr_0.7fr]";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -479,32 +448,11 @@ export default function BoardPage() {
 
   const day = useMemo(() => (sessions ? dayOverride ?? pickDay(sessions, now) : null), [sessions, now, dayOverride]);
   const lanes = useMemo(
-    () => (sessions && day !== null ? buildLanes(sessions.filter((s) => s.day === day), now, roomOrder) : []),
+    () => (sessions && day !== null ? orderLanes(buildLanes(sessions.filter((s) => s.day === day), now, roomOrder)) : []),
     [sessions, day, now, roomOrder],
   );
 
-  /**
-   * Hero: every operator-set live session (rarely more than two at once).
-   * List: everything else with something still to come, soonest first, so
-   * page one is always the rooms about to start. Rooms that are done for the
-   * day drop off rather than sit there saying "no further sessions".
-   */
-  const { hero, list, upNext } = useMemo(() => {
-    const live = lanes.filter((l) => l.isLive);
-    const rest = lanes
-      .filter((l) => !l.isLive && (l.now || l.next))
-      .sort((a, b) => {
-        const ta = +new Date((a.now && !a.isLive ? a.now : a.next)!.startsAt);
-        const tb = +new Date((b.now && !b.isLive ? b.now : b.next)!.startsAt);
-        return ta - tb;
-      });
-    if (live.length > 0) return { hero: live.slice(0, 2), list: [...live.slice(2), ...rest], upNext: null as RoomLane | null };
-    // nothing live: promote the soonest room with a scheduled session
-    const soonest = rest.find((l) => l.next && !l.now) ?? null;
-    return { hero: [] as RoomLane[], list: rest.filter((l) => l !== soonest), upNext: soonest };
-  }, [lanes]);
-
-  const pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(lanes.length / PAGE_SIZE));
   useEffect(() => {
     if (pageCount <= 1) {
       setPage(0);
@@ -514,7 +462,7 @@ export default function BoardPage() {
     return () => clearInterval(id);
   }, [pageCount]);
   const safePage = page % pageCount;
-  const rows = list.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+  const rows = lanes.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
   // `now` is the ticking clock state, so this re-evaluates every second
   // without reading the wall clock during render
@@ -537,87 +485,117 @@ export default function BoardPage() {
       />
 
       {/* header */}
-      <header className="relative flex items-end justify-between pb-[1vw]">
+      <header className="relative flex items-end justify-between border-b border-summit-lilac/10 pb-[1vw]">
         <div>
-          <p className="text-[0.95vw] uppercase tracking-[0.3em] text-summit-smoke">Gender &amp; Inclusion Summit 2026 · Abuja</p>
-          <h1 className="mt-[0.2vw] font-[family-name:var(--font-archivo)] text-[2.4vw] font-bold leading-none tracking-[-0.03em]">
+          <p className="text-[1vw] uppercase tracking-[0.3em] text-summit-smoke">Gender &amp; Inclusion Summit 2026 · Abuja</p>
+          <h1 className="mt-[0.2vw] font-[family-name:var(--font-archivo)] text-[2.6vw] font-bold leading-none tracking-[-0.03em]">
             Venue board
             {day !== null && <span className="ml-[1vw] text-summit-cerise">Day {day}</span>}
           </h1>
         </div>
         <div className="text-right">
-          <p className="text-[0.95vw] uppercase tracking-[0.3em] text-summit-smoke">{dateFmt.format(new Date(now))}</p>
+          <p className="text-[1vw] uppercase tracking-[0.3em] text-summit-smoke">{dateFmt.format(new Date(now))}</p>
           <Rolling
             text={clockFmt.format(new Date(now))}
-            className="mt-[0.1vw] font-[family-name:var(--font-archivo)] text-[3.2vw] font-bold leading-none tracking-[-0.02em]"
+            className="mt-[0.1vw] font-[family-name:var(--font-archivo)] text-[3.4vw] font-bold leading-none tracking-[-0.02em]"
           />
         </div>
       </header>
 
-      {/* hero */}
-      <section
-        className={`relative grid h-[30vh] shrink-0 gap-[1.2vw] ${hero.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}
-        style={{ perspective: "2000px" }}
-      >
-        <AnimatePresence mode="popLayout" initial={false}>
-          {hero.map((lane) => (
-            <HeroCard key={lane.room} lane={lane} now={now} wide={hero.length === 1} />
-          ))}
-          {hero.length === 0 && upNext && <UpNextHero key={`up-${upNext.room}`} lane={upNext} now={now} />}
-          {hero.length === 0 && !upNext && sessions !== null && (
-            <motion.div key="quiet" {...flip} className="glass-card flex items-center justify-center text-[1.6vw] text-summit-smoke">
-              {lanes.length === 0 ? "Nothing scheduled for today." : "No session is live right now."}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
-
-      {/* list */}
-      <div className="relative mt-[1.1vw] flex items-center justify-between px-[1.2vw] text-[0.85vw] uppercase tracking-[0.25em] text-summit-smoke/70">
-        <div className="grid flex-1 grid-cols-[15vw_1fr_0.75fr] gap-[2vw]">
+      {/* column legend + page dots */}
+      <div className="relative mt-[0.9vw] flex items-center px-[1.4vw] text-[0.9vw] uppercase tracking-[0.25em] text-summit-smoke/70">
+        <div className={`grid flex-1 ${COLS} gap-[2vw]`}>
           <span>Room</span>
+          <span>Now</span>
           <span>Next</span>
           <span>Then</span>
         </div>
         {pageCount > 1 && (
-          <span className="flex items-center gap-[0.5vw]" aria-label={`Page ${safePage + 1} of ${pageCount}`}>
+          <span className="ml-[2vw] flex items-center gap-[0.5vw]" aria-label={`Page ${safePage + 1} of ${pageCount}`}>
             {Array.from({ length: pageCount }, (_, i) => (
               <span
                 key={i}
-                className={`inline-block h-[0.5vw] rounded-full transition-all duration-500 ${
-                  i === safePage ? "w-[1.6vw] bg-summit-cerise" : "w-[0.5vw] bg-summit-lilac/25"
+                className={`inline-block h-[0.55vw] rounded-full transition-all duration-500 ${
+                  i === safePage ? "w-[1.8vw] bg-summit-cerise" : "w-[0.55vw] bg-summit-lilac/25"
                 }`}
               />
             ))}
           </span>
         )}
       </div>
-      <section className="relative mt-[0.5vw] flex min-h-0 flex-1 flex-col gap-[0.6vw]">
+
+      {/* lanes */}
+      <section className="relative mt-[0.5vw] flex min-h-0 flex-1 flex-col" style={{ perspective: "2000px" }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={safePage}
-            className="flex min-h-0 flex-1 flex-col gap-[0.6vw]"
-            initial={{ opacity: 0, y: 30 }}
+            className="flex min-h-0 flex-1 flex-col gap-[0.7vw]"
+            initial={{ opacity: 0, y: 36 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -30 }}
-            transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
+            exit={{ opacity: 0, y: -36 }}
+            transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
           >
             {rows.map((lane) => (
-              <Row key={lane.room} lane={lane} now={now} />
-            ))}
-            {/* keep the grid steady when a page is short, so rows never stretch */}
-            {Array.from({ length: PAGE_SIZE - rows.length }, (_, i) => (
-              <div key={`pad-${i}`} className="flex-1" />
+              <article
+                key={lane.room}
+                // live rows take one and a half shares of the height, so the
+                // thing everyone is asking about is the biggest thing on screen
+                style={{ flex: lane.isLive ? "1.85 1 0%" : "1 1 0%" }}
+                className={`glass-card relative grid min-h-0 ${COLS} items-center gap-[2vw] overflow-hidden px-[1.6vw] pb-[1.1vw] pt-[0.7vw] ${
+                  lane.isLive
+                    ? "border-summit-cerise/45 shadow-[0_0_0_1px_rgb(229_37_154/0.25),0_28px_70px_rgb(229_37_154/0.2)]"
+                    : ""
+                }`}
+              >
+                {lane.isLive && (
+                  <motion.div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 bg-summit-cerise/8"
+                    animate={{ opacity: [0.35, 0.9, 0.35] }}
+                    transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                )}
+                <div className="relative flex h-full flex-col justify-center border-r border-summit-lilac/10 pr-[1.5vw]">
+                  <p className="text-[0.95vw] uppercase tracking-[0.25em] text-summit-smoke">Room</p>
+                  <p
+                    className={`mt-[0.15vw] font-[family-name:var(--font-archivo)] font-bold leading-[1.05] tracking-[-0.02em] ${
+                      lane.isLive ? "text-[2.3vw]" : "text-[1.9vw]"
+                    }`}
+                  >
+                    {lane.room}
+                  </p>
+                </div>
+                <div className="relative min-w-0" style={{ perspective: "1600px" }}>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <NowCell lane={lane} now={now} />
+                  </AnimatePresence>
+                </div>
+                <div className="relative min-w-0 border-l border-summit-lilac/10 pl-[1.6vw]" style={{ perspective: "1600px" }}>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <NextCell session={lane.next} now={now} label="Next" />
+                  </AnimatePresence>
+                </div>
+                <div className="relative min-w-0 border-l border-summit-lilac/10 pl-[1.6vw]" style={{ perspective: "1600px" }}>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <NextCell session={lane.later} now={now} label="Then" />
+                  </AnimatePresence>
+                </div>
+                <LaneProgress session={lane.now} now={now} />
+              </article>
             ))}
           </motion.div>
         </AnimatePresence>
+
         {sessions === null && !error && (
-          <div className="absolute inset-0 flex items-center justify-center text-[1.4vw] text-summit-smoke">Loading the programme…</div>
+          <div className="absolute inset-0 flex items-center justify-center text-[1.5vw] text-summit-smoke">Loading the programme…</div>
+        )}
+        {sessions !== null && lanes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-[1.5vw] text-summit-smoke">Nothing scheduled for today.</div>
         )}
       </section>
 
       {/* footer */}
-      <footer className="relative mt-[0.9vw] flex items-center justify-between border-t border-summit-lilac/10 pt-[0.8vw] text-[0.85vw] uppercase tracking-[0.25em] text-summit-smoke/70">
+      <footer className="relative mt-[1vw] flex items-center justify-between border-t border-summit-lilac/10 pt-[0.8vw] text-[0.9vw] uppercase tracking-[0.25em] text-summit-smoke/70">
         <span>All times West Africa Time</span>
         <span className="flex items-center gap-[0.6vw]">
           <span className={`inline-block h-[0.6vw] w-[0.6vw] rounded-full ${stale ? "bg-summit-cream" : "bg-summit-green"}`} />
