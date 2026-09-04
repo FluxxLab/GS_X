@@ -28,7 +28,14 @@ export default function RealtimeRefresher() {
       .then((sock) => {
         if (cancelled) return;
         s = sock;
+        // Everything that changes the schedule: status, edits, creates,
+        // deletes, a push down a room, and the speaker reveal.
         s.on("session:status", onSession);
+        s.on("session:updated", onSession);
+        s.on("session:created", onSession);
+        s.on("session:deleted", onSession);
+        s.on("sessions:shifted", onSession);
+        s.on("speakers:revealed", onSession);
         s.on("notification", onNotification);
         s.on("voting:tally", onTally);
         s.on("voting:opened", onTally);
@@ -51,6 +58,11 @@ export default function RealtimeRefresher() {
     return () => {
       cancelled = true;
       s?.off("session:status", onSession);
+      s?.off("session:updated", onSession);
+      s?.off("session:created", onSession);
+      s?.off("session:deleted", onSession);
+      s?.off("sessions:shifted", onSession);
+      s?.off("speakers:revealed", onSession);
       s?.off("notification", onNotification);
       s?.off("voting:tally", onTally);
       s?.off("voting:opened", onTally);
