@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { summitDateKey } from "@/lib/summit/time";
 import { dayHomes, dayOfDate } from "@/lib/summit/summit-days";
 import { getSocket } from "@/lib/summit/socket";
@@ -418,6 +419,78 @@ export default function BoardPage() {
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
+  /**
+   * Full-screen mode. The board is meant to own a whole TV, and a browser
+   * chrome bar across the top of it looks like a laptop left on a stand.
+   * Browsers only grant full screen from a click or a key press, so there is
+   * a button and the F key; ?fullscreen=1 cannot do it on its own, but it
+   * makes the button the first thing on screen so a volunteer knows.
+   * While full screen the cursor is hidden and a wake lock keeps the display
+   * from sleeping halfway through a keynote.
+   */
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
+  useEffect(() => {
+    const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+    setFullscreenSupported(typeof el.requestFullscreen === "function" || typeof el.webkitRequestFullscreen === "function");
+    const sync = () => {
+      const d = document as Document & { webkitFullscreenElement?: Element | null };
+      setFullscreen(Boolean(document.fullscreenElement || d.webkitFullscreenElement));
+    };
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+    };
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+    const d = document as Document & { webkitExitFullscreen?: () => Promise<void> | void; webkitFullscreenElement?: Element | null };
+    const active = Boolean(document.fullscreenElement || d.webkitFullscreenElement);
+    try {
+      if (active) void (document.exitFullscreen?.() ?? d.webkitExitFullscreen?.());
+      else void (el.requestFullscreen?.({ navigationUI: "hide" }) ?? el.webkitRequestFullscreen?.());
+    } catch {
+      // a browser that refuses (no user gesture, an iframe) just stays as it is
+    }
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "f" || e.key === "F") {
+        if ((e.target as HTMLElement | null)?.tagName === "INPUT") return;
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleFullscreen]);
+  // keep the display awake while the board owns it; released when we leave
+  useEffect(() => {
+    if (!fullscreen) return;
+    const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } };
+    let lock: { release: () => Promise<void> } | null = null;
+    let cancelled = false;
+    nav.wakeLock?.request("screen").then((l) => { if (cancelled) void l.release(); else lock = l; }).catch(() => {});
+    // the lock is dropped when the tab is hidden; take it again on return
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !lock) {
+        nav.wakeLock?.request("screen").then((l) => { lock = l; }).catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      void lock?.release();
+      lock = null;
+    };
+  }, [fullscreen]);
+  // ?fullscreen=1: draw the eye to the button on a fresh screen
+  const [nudge, setNudge] = useState(false);
+
   // when the programme last loaded cleanly; drives the footer's health dot
   const [lastGood, setLastGood] = useState(0);
   // the query string has been read; nothing loads before then, or a demo
@@ -433,6 +506,7 @@ export default function BoardPage() {
     setRoomOrder(rooms ? rooms.split(",").map((r) => r.trim()).filter(Boolean) : null);
     const day = q.get("day");
     setDayOverride(day ? Number(day) : null);
+    setNudge(q.get("fullscreen") === "1");
     setReady(true);
   }, []);
 
@@ -502,7 +576,7 @@ export default function BoardPage() {
   const stale = error !== null && now - lastGood > STALE_MS;
 
   return (
-    <main className="relative flex min-h-full w-full flex-col overflow-hidden px-[calc(3*var(--u))] py-[calc(2.2*var(--u))] md:h-full md:cursor-none">
+    <main className={`relative flex min-h-full w-full flex-col overflow-hidden px-[calc(3*var(--u))] py-[calc(2.2*var(--u))] md:h-full ${fullscreen ? "md:cursor-none" : ""}`}>
       {/* ambient wash: the console's violet with a slow cerise breath in one corner */}
       <motion.div
         aria-hidden
@@ -532,12 +606,40 @@ export default function BoardPage() {
             )}
           </h1>
         </div>
-        <div className="md:text-right">
-          <p className="text-[calc(1*var(--u))] uppercase tracking-[0.3em] text-summit-smoke">{dateFmt.format(new Date(now))}</p>
-          <Rolling
-            text={clockFmt.format(new Date(now))}
-            className="mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(3.6*var(--u))] font-bold leading-none tracking-[-0.02em]"
-          />
+        <div className="flex items-end gap-[calc(1.6*var(--u))] md:text-right">
+          <div>
+            <p className="text-[calc(1*var(--u))] uppercase tracking-[0.3em] text-summit-smoke">{dateFmt.format(new Date(now))}</p>
+            <Rolling
+              text={clockFmt.format(new Date(now))}
+              className="mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(3.6*var(--u))] font-bold leading-none tracking-[-0.02em]"
+            />
+          </div>
+          {/* Hidden once full screen: from there Esc or F is the way out and
+              a button would only be a thing to bump. */}
+          {fullscreenSupported && !fullscreen && (
+            <motion.button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-label="Show the board full screen (F)"
+              title="Full screen (F)"
+              className="flex items-center gap-[calc(0.6*var(--u))] rounded-full border border-summit-lilac/20 bg-summit-lilac/5 px-[calc(1.2*var(--u))] py-[calc(0.7*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-lilac transition hover:border-summit-cerise/60 hover:bg-summit-cerise/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise"
+              animate={nudge ? { scale: [1, 1.06, 1], boxShadow: ["0 0 0 0 rgb(229 37 154 / 0.0)", "0 0 0 10px rgb(229 37 154 / 0.25)", "0 0 0 0 rgb(229 37 154 / 0.0)"] } : {}}
+              transition={nudge ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" } : {}}
+            >
+              <Maximize2 className="h-[calc(1.1*var(--u))] w-[calc(1.1*var(--u))]" aria-hidden />
+              Full screen
+            </motion.button>
+          )}
+          {fullscreen && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-label="Leave full screen (Esc)"
+              className="opacity-0 focus-visible:opacity-100"
+            >
+              <Minimize2 className="h-[calc(1.1*var(--u))] w-[calc(1.1*var(--u))]" aria-hidden />
+            </button>
+          )}
         </div>
       </header>
 
@@ -610,7 +712,7 @@ export default function BoardPage() {
 
       {/* footer */}
       <footer className="relative mt-[calc(1.2*var(--u))] flex items-center justify-between border-t border-summit-lilac/10 pt-[calc(1*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70">
-        <span>All times West Africa Time</span>
+        <span>All times West Africa Time{fullscreenSupported && !fullscreen ? " · press F for full screen" : ""}</span>
         <span className="flex items-center gap-[calc(0.6*var(--u))]">
           <span className={`inline-block h-[calc(0.6*var(--u))] w-[calc(0.6*var(--u))] rounded-full ${stale ? "bg-summit-cream" : "bg-summit-green"}`} />
           {demo ? "Demo programme" : stale ? "Reconnecting to the programme" : "Live programme"}
