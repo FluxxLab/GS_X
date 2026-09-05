@@ -528,11 +528,18 @@ function RoomSign({ lane, room, now, onClose }: { lane: RoomLane | null; room: s
       role="dialog"
       aria-modal="true"
       aria-label={`${room}: now`}
-      className="absolute inset-0 z-20 flex flex-col bg-summit-violet px-[calc(4*var(--u))] py-[calc(3*var(--u))]"
+      className="absolute inset-0 z-20 flex items-stretch justify-center bg-summit-violet p-[calc(2*var(--u))]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
+    >
+    <motion.div
+      className="glass-card relative flex w-full flex-col overflow-hidden rounded-[calc(2.5*var(--u))] border-summit-lilac/20 px-[calc(4*var(--u))] py-[calc(3*var(--u))] shadow-[0_40px_120px_rgb(0_0_0/0.5)]"
+      initial={{ opacity: 0, y: 24, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 16, scale: 0.985 }}
+      transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
     >
       {/* the same ambient wash as the board, so the sign is the board's own */}
       <motion.div
@@ -628,6 +635,7 @@ function RoomSign({ lane, room, now, onClose }: { lane: RoomLane | null; room: s
         </AnimatePresence>
       </footer>
       {current && <LaneProgress session={current} now={now} />}
+    </motion.div>
     </motion.div>
   );
 }
