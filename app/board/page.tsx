@@ -469,8 +469,8 @@ function ListRow({ session, now, onOpenRoom }: { session: BoardSession; now: num
       <button
         type="button"
         onClick={() => onOpenRoom(session.room)}
-        aria-label={`Show every session in ${session.room} today`}
-        title="All sessions in this room"
+        aria-label={`Open the door sign for ${session.room}`}
+        title="Door sign for this room"
         className="group flex flex-col justify-center text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise md:border-l md:border-summit-lilac/10 md:pl-[calc(1.4*var(--u))]"
       >
         <span className="text-[calc(0.85*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">Room</span>
@@ -499,141 +499,135 @@ function ListRow({ session, now, onOpenRoom }: { session: BoardSession; now: num
 }
 
 /**
- * The whole day in one room, as a pop-up over the board: every session in
- * order, the ones already done greyed, the current one marked, with the same
- * countdowns the board shows. Opened from the arrow on a room's lane or its
- * name in the list.
+ * The door sign: one room, what is on in it right now, readable from the
+ * corridor. Opened from the arrow on a room's lane or its name in the list,
+ * or straight from the URL (?room=Main%20Hall) for a tablet at the door.
  *
- * It closes on Esc, on the backdrop, on the X, and on its own after a while:
- * the board is usually unattended, and a pop-up left open on the TV would
- * hide the board for the rest of the afternoon.
+ * Only the current activity, in the largest type on the board, with what
+ * follows underneath in small - that is what a door sign is for. It never
+ * closes on its own: a sign that vanished after a minute would be no sign.
+ * Esc, the X, or a click on the backdrop close it when someone wants the
+ * board back.
  */
-const POPUP_AUTO_CLOSE_MS = 60_000;
-
-function RoomPopup({ room, sessions, now, onClose }: { room: string; sessions: BoardSession[]; now: number; onClose: () => void }) {
+function RoomSign({ lane, room, now, onClose }: { lane: RoomLane | null; room: string; now: number; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
-    const timer = setTimeout(onClose, POPUP_AUTO_CLOSE_MS);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      clearTimeout(timer);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const list = [...sessions].sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
-  const done = list.filter((x) => x.status === "completed" || +new Date(x.endsAt) <= now).length;
+  const current = lane?.now ?? null;
+  const next = lane?.next ?? null;
+  const isLive = Boolean(lane?.isLive);
+  const remaining = current ? +new Date(current.endsAt) - now : 0;
+  const overrun = remaining < 0;
+  const names = (current?.speakers ?? []).map((sp) => sp.name).filter(Boolean);
 
   return (
     <motion.div
       role="dialog"
       aria-modal="true"
-      aria-label={`All sessions in ${room}`}
-      className="absolute inset-0 z-20 flex items-center justify-center p-[calc(3*var(--u))]"
+      aria-label={`${room}: now`}
+      className="absolute inset-0 z-20 flex flex-col bg-summit-violet px-[calc(4*var(--u))] py-[calc(3*var(--u))]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.25 }}
+      transition={{ duration: 0.3 }}
     >
-      {/* backdrop */}
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-summit-violet/70 backdrop-blur-md" />
+      {/* the same ambient wash as the board, so the sign is the board's own */}
       <motion.div
-        className="glass-card relative flex max-h-full w-full max-w-[calc(70*var(--u))] flex-col overflow-hidden border-summit-lilac/20 shadow-[0_40px_120px_rgb(0_0_0/0.5)]"
-        initial={{ opacity: 0, y: 24, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 16, scale: 0.98 }}
-        transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
-      >
-        <header className="flex items-start justify-between gap-[calc(2*var(--u))] border-b border-summit-lilac/10 px-[calc(2*var(--u))] py-[calc(1.4*var(--u))]">
-          <div>
-            <p className="text-[calc(0.9*var(--u))] uppercase tracking-[0.3em] text-summit-smoke">Room · today</p>
-            <h2 className="mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(2.4*var(--u))] font-bold leading-none tracking-[-0.03em]">{room}</h2>
-            <p className="mt-[calc(0.5*var(--u))] text-[calc(1*var(--u))] text-summit-smoke">
-              {list.length} {list.length === 1 ? "session" : "sessions"}
-              {done > 0 ? ` · ${done} done` : ""}
-            </p>
-          </div>
+        aria-hidden
+        className="pointer-events-none absolute -right-[20vw] -top-[30vw] h-[70vw] w-[70vw] rounded-full bg-summit-cerise/10 blur-[120px]"
+        animate={{ opacity: [0.5, 0.9, 0.5] }}
+        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      {/* room */}
+      <header className="relative flex items-start justify-between gap-[calc(2*var(--u))]">
+        <div>
+          <p className="text-[calc(1.1*var(--u))] uppercase tracking-[0.35em] text-summit-smoke">Room</p>
+          <h1 className="mt-[calc(0.3*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(5*var(--u))] font-black leading-[0.95] tracking-[-0.04em]">{room}</h1>
+        </div>
+        <div className="flex items-start gap-[calc(1.5*var(--u))]">
+          <Rolling
+            text={clockFmt.format(new Date(now))}
+            className="font-[family-name:var(--font-archivo)] text-[calc(3*var(--u))] font-bold leading-none tracking-[-0.02em] text-summit-lilac/80"
+          />
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
-            className="flex h-[calc(3*var(--u))] w-[calc(3*var(--u))] shrink-0 items-center justify-center rounded-full border border-summit-lilac/20 text-summit-lilac transition hover:border-summit-cerise/60 hover:bg-summit-cerise/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise"
+            aria-label="Back to the board"
+            className="flex h-[calc(3*var(--u))] w-[calc(3*var(--u))] shrink-0 items-center justify-center rounded-full border border-summit-lilac/20 text-summit-lilac/70 transition hover:border-summit-cerise/60 hover:bg-summit-cerise/10 hover:text-summit-lilac focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise"
           >
             <X className="h-[calc(1.3*var(--u))] w-[calc(1.3*var(--u))]" aria-hidden />
           </button>
-        </header>
-        <ol className="min-h-0 flex-1 overflow-y-auto px-[calc(2*var(--u))] py-[calc(1*var(--u))]">
-          {list.length === 0 && (
-            <li className="py-[calc(2*var(--u))] text-center text-[calc(1.2*var(--u))] text-summit-smoke">Nothing scheduled here today.</li>
+        </div>
+      </header>
+
+      {/* now */}
+      <section className="relative flex min-h-0 flex-1 flex-col justify-center py-[calc(2*var(--u))]">
+        <AnimatePresence mode="wait" initial={false}>
+          {current ? (
+            <motion.div key={current.id} {...flip} className="flex flex-col gap-[calc(1.2*var(--u))]">
+              <div className="flex flex-wrap items-center gap-[calc(1*var(--u))]">
+                {isLive ? (
+                  <span className="inline-flex items-center gap-[calc(0.6*var(--u))] rounded-full bg-summit-cerise/15 px-[calc(1.4*var(--u))] py-[calc(0.45*var(--u))] text-[calc(1.3*var(--u))] font-bold uppercase tracking-[0.2em] text-summit-cerise">
+                    <LiveDot /> Now live
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-summit-lilac/10 px-[calc(1.4*var(--u))] py-[calc(0.45*var(--u))] text-[calc(1.3*var(--u))] font-bold uppercase tracking-[0.2em] text-summit-lilac/80">
+                    Now
+                  </span>
+                )}
+                <span className="text-[calc(1.6*var(--u))] font-semibold tabular-nums text-summit-smoke">{fmtRange(current)}</span>
+                {current.type && !/^session$/i.test(current.type) && (
+                  <span className="text-[calc(1.2*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70">{current.type}</span>
+                )}
+              </div>
+              <h2 className="line-clamp-3 font-[family-name:var(--font-archivo)] text-[calc(6*var(--u))] font-black leading-[1] tracking-[-0.04em]">{current.title}</h2>
+              {names.length > 0 && (
+                <p className="text-[calc(2*var(--u))] font-semibold leading-tight text-summit-lilac/85">
+                  {names.slice(0, 4).join("  ·  ")}
+                  {names.length > 4 ? `  +${names.length - 4}` : ""}
+                </p>
+              )}
+              <div className="mt-[calc(0.5*var(--u))] flex items-baseline gap-[calc(0.8*var(--u))]">
+                <span className="text-[calc(1.3*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
+                <Rolling
+                  text={fmtRemaining(Math.abs(remaining))}
+                  className={`font-[family-name:var(--font-archivo)] text-[calc(3.6*var(--u))] font-black leading-none tabular-nums ${overrun ? "text-summit-cream" : "text-summit-lilac"}`}
+                />
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div key="idle" {...flip} className="flex flex-col gap-[calc(1*var(--u))]">
+              <p className="text-[calc(1.3*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">{next ? "Break" : "Nothing further in this room today"}</p>
+              {next && (
+                <h2 className="font-[family-name:var(--font-archivo)] text-[calc(5*var(--u))] font-black leading-[1] tracking-[-0.04em] text-summit-lilac/90">
+                  Doors open {fmtTime(next.startsAt)}
+                </h2>
+              )}
+            </motion.div>
           )}
-          {list.map((x) => {
-            const start = +new Date(x.startsAt);
-            const end = +new Date(x.endsAt);
-            const isLive = x.status === "live";
-            const finished = !isLive && (x.status === "completed" || end <= now);
-            const running = !isLive && !finished && start <= now;
-            const remaining = end - now;
-            const names = (x.speakers ?? []).map((sp) => sp.name).filter(Boolean);
-            return (
-              <li
-                key={x.id}
-                className={`relative grid grid-cols-[9vw_1fr_auto] items-center gap-[calc(1.5*var(--u))] border-b border-summit-lilac/8 py-[calc(1*var(--u))] last:border-b-0 ${finished ? "opacity-45" : ""}`}
-              >
-                <div>
-                  <p className="font-[family-name:var(--font-archivo)] text-[calc(1.5*var(--u))] font-bold leading-none tabular-nums tracking-[-0.02em]">{fmtTime(x.startsAt)}</p>
-                  <p className="mt-[calc(0.2*var(--u))] text-[calc(0.85*var(--u))] tabular-nums text-summit-smoke">to {fmtTime(x.endsAt)}</p>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-[calc(0.6*var(--u))]">
-                    {isLive && (
-                      <span className="inline-flex shrink-0 items-center gap-[calc(0.4*var(--u))] rounded-full bg-summit-cerise/15 px-[calc(0.8*var(--u))] py-[calc(0.15*var(--u))] text-[calc(0.8*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-cerise">
-                        <LiveDot /> Live
-                      </span>
-                    )}
-                    {running && (
-                      <span className="inline-flex shrink-0 items-center rounded-full bg-summit-lilac/10 px-[calc(0.8*var(--u))] py-[calc(0.15*var(--u))] text-[calc(0.8*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-lilac/80">
-                        In progress
-                      </span>
-                    )}
-                    {finished && (
-                      <span className="inline-flex shrink-0 items-center rounded-full bg-summit-lilac/8 px-[calc(0.8*var(--u))] py-[calc(0.15*var(--u))] text-[calc(0.8*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-smoke">
-                        Done
-                      </span>
-                    )}
-                    {x.type && !/^session$/i.test(x.type) && (
-                      <span className="truncate text-[calc(0.85*var(--u))] uppercase tracking-[0.2em] text-summit-smoke/70">{x.type}</span>
-                    )}
-                  </div>
-                  <p className={`mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] font-bold leading-[1.15] tracking-[-0.02em] ${isLive ? "text-[calc(1.5*var(--u))]" : "text-[calc(1.3*var(--u))]"}`}>{x.title}</p>
-                  {names.length > 0 && (
-                    <p className="mt-[calc(0.15*var(--u))] truncate text-[calc(1*var(--u))] text-summit-smoke">
-                      {names.slice(0, 4).join("  ·  ")}
-                      {names.length > 4 ? `  +${names.length - 4}` : ""}
-                    </p>
-                  )}
-                </div>
-                <div className="whitespace-nowrap text-right">
-                  {isLive || running ? (
-                    <span className="flex items-baseline justify-end gap-[calc(0.4*var(--u))]">
-                      <span className="text-[calc(0.8*var(--u))] uppercase tracking-[0.18em] text-summit-smoke">{remaining < 0 ? "Over by" : "Ends in"}</span>
-                      <Rolling
-                        text={fmtRemaining(Math.abs(remaining))}
-                        className={`font-[family-name:var(--font-archivo)] text-[calc(1.4*var(--u))] font-bold leading-none tabular-nums ${remaining < 0 ? "text-summit-cream" : "text-summit-lilac"}`}
-                      />
-                    </span>
-                  ) : finished ? null : (
-                    <When iso={x.startsAt} now={now} size="text-[calc(1.3*var(--u))]" accent={start - now <= 10 * 60_000} />
-                  )}
-                </div>
-                {(isLive || running) && <LaneProgress session={x} now={now} />}
-              </li>
-            );
-          })}
-        </ol>
-        <footer className="border-t border-summit-lilac/10 px-[calc(2*var(--u))] py-[calc(0.8*var(--u))] text-[calc(0.8*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70">
-          Closes on its own in a minute · Esc to close now
-        </footer>
-      </motion.div>
+        </AnimatePresence>
+      </section>
+
+      {/* next, small */}
+      <footer className="relative border-t border-summit-lilac/15 pt-[calc(1.5*var(--u))]">
+        <AnimatePresence mode="wait" initial={false}>
+          {next ? (
+            <motion.div key={next.id} {...flip} className="flex flex-wrap items-baseline gap-x-[calc(1.5*var(--u))] gap-y-[calc(0.4*var(--u))]">
+              <span className="rounded-full bg-summit-cerulean/15 px-[calc(1.1*var(--u))] py-[calc(0.3*var(--u))] text-[calc(1*var(--u))] font-bold uppercase tracking-[0.2em] text-summit-cerulean">Next</span>
+              <span className="text-[calc(1.3*var(--u))] tabular-nums text-summit-smoke">{fmtRange(next)}</span>
+              <span className="min-w-0 flex-1 truncate font-[family-name:var(--font-archivo)] text-[calc(2*var(--u))] font-bold tracking-[-0.02em]">{next.title}</span>
+              <When iso={next.startsAt} now={now} size="text-[calc(2*var(--u))]" accent={+new Date(next.startsAt) - now <= 10 * 60_000} />
+            </motion.div>
+          ) : (
+            <motion.p key="none" {...flip} className="text-[calc(1.1*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/60">No further sessions today</motion.p>
+          )}
+        </AnimatePresence>
+      </footer>
+      {current && <LaneProgress session={current} now={now} />}
     </motion.div>
   );
 }
@@ -802,6 +796,8 @@ export default function BoardPage() {
     setRoomOrder(rooms ? rooms.split(",").map((r) => r.trim()).filter(Boolean) : null);
     const hide = q.get("hide");
     setHiddenRooms(hide ? hide.split(",").map(roomKey).filter(Boolean) : []);
+    const room = q.get("room");
+    if (room) setOpenRoom(room.trim());
     const day = q.get("day");
     setDayOverride(day ? Number(day) : null);
     setNudge(q.get("fullscreen") === "1");
@@ -879,6 +875,12 @@ export default function BoardPage() {
   );
 
   const rows = useMemo(() => (todays ? queueList(todays, now) : []), [todays, now]);
+  // the open room's lane, matched loosely so ?room=main%20hall finds "Main Hall"
+  const signLane = useMemo(() => {
+    if (openRoom === null || !sessions || date === null) return null;
+    const mine = sessions.filter((x) => summitDateKey(x.startsAt) === date && roomKey(x.room) === roomKey(openRoom));
+    return buildLanes(mine, now, null)[0] ?? null;
+  }, [openRoom, sessions, date, now]);
 
   // `now` is the ticking clock state, so this re-evaluates every second
   // without reading the wall clock during render
@@ -1048,12 +1050,12 @@ export default function BoardPage() {
                     <p className="text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">Room</p>
                     <div className="mt-[calc(0.2*var(--u))] flex items-start justify-between gap-[calc(0.8*var(--u))]">
                       <p className="font-[family-name:var(--font-archivo)] text-[calc(1.9*var(--u))] font-bold leading-[1.05] tracking-[-0.02em]">{lane.room}</p>
-                      {/* the expander: the whole day in this room, as a pop-up */}
+                      {/* the expander: this room's door sign, full screen */}
                       <button
                         type="button"
                         onClick={() => setOpenRoom(lane.room)}
-                        aria-label={`Show every session in ${lane.room} today`}
-                        title="All sessions in this room"
+                        aria-label={`Open the door sign for ${lane.room}`}
+                        title="Door sign for this room"
                         className="flex h-[calc(2.4*var(--u))] w-[calc(2.4*var(--u))] shrink-0 items-center justify-center rounded-full border border-summit-lilac/20 bg-summit-lilac/5 text-summit-lilac/80 transition hover:border-summit-cerise/60 hover:bg-summit-cerise/10 hover:text-summit-lilac focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise"
                       >
                         <ArrowUpRight className="h-[calc(1.2*var(--u))] w-[calc(1.2*var(--u))]" aria-hidden />
@@ -1092,13 +1094,13 @@ export default function BoardPage() {
         )}
       </div>
 
-      {/* the room pop-up, over everything including the footer */}
+      {/* the door sign for one room, over everything including the footer */}
       <AnimatePresence>
         {openRoom !== null && (
-          <RoomPopup
+          <RoomSign
             key={openRoom}
             room={openRoom}
-            sessions={(todays ?? []).filter((x) => x.room === openRoom)}
+            lane={signLane}
             now={now}
             onClose={closeRoom}
           />
