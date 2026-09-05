@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { summitDateKey } from "@/lib/summit/time";
 import { dayHomes, dayOfDate } from "@/lib/summit/summit-days";
@@ -71,8 +71,16 @@ const STALE_MS = 30_000;
  * from the back of a hall on a 1080p screen.
  */
 const MAX_ROWS = 5;
+/**
+ * The list view is one line per session across every room, so it fits more
+ * than the room view before the type gets too small to read from the back.
+ */
+const MAX_LIST_ROWS = 9;
 /** Beyond this a countdown stops meaning anything; show the start time. */
 const FAR_MS = 6 * 3600_000;
+
+type BoardView = "rooms" | "list";
+const VIEW_KEY = "gs26.board.view";
 const TZ = "Africa/Lagos";
 
 const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
@@ -106,6 +114,23 @@ function whenLabel(iso: string, now: number): { label: string; value: string; ro
   if (ms <= FAR_MS) return { label: "In", value: fmtRemaining(ms), rolling: true };
   const sameDay = dayKeyFmt.format(new Date(iso)) === dayKeyFmt.format(new Date(now));
   return { label: sameDay ? "At" : "", value: sameDay ? fmtTime(iso) : dayTimeFmt.format(new Date(iso)), rolling: false };
+}
+
+/**
+ * The list view's rows: every session on the day that has not finished yet,
+ * in start order, live ones first. A session drops off the moment it ends
+ * (or the operator marks it completed) and everything below moves up - the
+ * same departures-board rule the room view follows.
+ */
+function queueList(sessions: BoardSession[], now: number): BoardSession[] {
+  const live = (x: BoardSession) => x.status === "live";
+  return sessions
+    .filter((x) => x.status !== "completed" && (live(x) || +new Date(x.endsAt) > now))
+    .sort((a, b) => {
+      if (live(a) !== live(b)) return live(a) ? -1 : 1;
+      return +new Date(a.startsAt) - +new Date(b.startsAt) || a.room.localeCompare(b.room);
+    })
+    .slice(0, MAX_LIST_ROWS);
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +399,81 @@ function NextCell({ session, now, label }: { session: BoardSession | null; now: 
   );
 }
 
+/** One session in the list view: time, what, where, and how long until or left. */
+function ListRow({ session, now }: { session: BoardSession; now: number }) {
+  const start = +new Date(session.startsAt);
+  const end = +new Date(session.endsAt);
+  const isLive = session.status === "live";
+  const inProgress = !isLive && start <= now && end > now;
+  const remaining = end - now;
+  const overrun = remaining < 0;
+  const soon = !isLive && !inProgress && start - now <= 10 * 60_000;
+  return (
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -18 }}
+      transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
+      className={`glass-card relative grid grid-cols-1 items-center gap-[calc(0.6*var(--u))] overflow-hidden px-[calc(1.6*var(--u))] pt-[calc(0.9*var(--u))] md:min-h-0 md:flex-1 md:grid-cols-[11vw_1fr_16vw_15vw] md:gap-[calc(2*var(--u))] ${
+        // a running row carries the progress bar along its bottom edge; the
+        // extra padding keeps the speaker line clear of it
+        isLive || inProgress ? "pb-[calc(1.4*var(--u))]" : "pb-[calc(0.9*var(--u))]"
+      } ${
+        isLive ? "border-summit-cerise/30 shadow-[0_0_0_1px_rgb(229_37_154/0.15),0_24px_60px_rgb(229_37_154/0.12)]" : ""
+      }`}
+    >
+      {/* time */}
+      <div className="flex flex-col justify-center">
+        <span className="font-[family-name:var(--font-archivo)] text-[calc(2*var(--u))] font-bold leading-none tabular-nums tracking-[-0.02em]">{fmtTime(session.startsAt)}</span>
+      </div>
+      {/* what */}
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-[calc(0.6*var(--u))]">
+          {isLive && (
+            <span className="inline-flex shrink-0 items-center gap-[calc(0.5*var(--u))] whitespace-nowrap rounded-full bg-summit-cerise/15 px-[calc(0.9*var(--u))] py-[calc(0.2*var(--u))] text-[calc(0.85*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-cerise">
+              <LiveDot /> Live
+            </span>
+          )}
+          {inProgress && (
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-summit-lilac/10 px-[calc(0.9*var(--u))] py-[calc(0.2*var(--u))] text-[calc(0.85*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-lilac/80">
+              In progress
+            </span>
+          )}
+          {/* the type only when it says something; "Session" on every line is noise */}
+          {session.type && !/^session$/i.test(session.type) && (
+            <span className="truncate text-[calc(0.9*var(--u))] uppercase tracking-[0.2em] text-summit-smoke/70">{session.type}</span>
+          )}
+          <span className="shrink-0 whitespace-nowrap text-[calc(0.95*var(--u))] tabular-nums text-summit-smoke">{fmtRange(session)}</span>
+        </div>
+        <h2 className={`mt-[calc(0.2*var(--u))] line-clamp-1 font-[family-name:var(--font-archivo)] font-bold leading-[1.1] tracking-[-0.02em] ${isLive ? "text-[calc(1.75*var(--u))]" : "text-[calc(1.5*var(--u))]"}`}>
+          {session.title}
+        </h2>
+      </div>
+      {/* where */}
+      <div className="flex flex-col justify-center md:border-l md:border-summit-lilac/10 md:pl-[calc(1.4*var(--u))]">
+        <span className="text-[calc(0.85*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">Room</span>
+        <span className="mt-[calc(0.15*var(--u))] line-clamp-2 font-[family-name:var(--font-archivo)] text-[calc(1.45*var(--u))] font-bold leading-[1.05] tracking-[-0.02em]">{session.room}</span>
+      </div>
+      {/* when */}
+      <div className="flex items-center md:justify-end">
+        {isLive || inProgress ? (
+          <span className="flex items-baseline gap-[calc(0.4*var(--u))] whitespace-nowrap">
+            <span className="text-[calc(0.9*var(--u))] uppercase tracking-[0.18em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
+            <Rolling
+              text={fmtRemaining(Math.abs(remaining))}
+              className={`font-[family-name:var(--font-archivo)] text-[calc(1.7*var(--u))] font-bold leading-none tabular-nums ${overrun ? "text-summit-cream" : "text-summit-lilac"}`}
+            />
+          </span>
+        ) : (
+          <When iso={session.startsAt} now={now} size="text-[calc(1.6*var(--u))]" accent={soon} />
+        )}
+      </div>
+      {(isLive || inProgress) && <LaneProgress session={session} now={now} />}
+    </motion.li>
+  );
+}
+
 /**
  * The lane's timeline, along the bottom edge of the whole card. Rendered by
  * the card rather than inside the Now cell: the cell flips with a 3D
@@ -402,7 +502,14 @@ function LaneProgress({ session, now }: { session: BoardSession | null; now: num
 // Page
 // ---------------------------------------------------------------------------
 
+const noSubscribe = () => () => {};
+
 export default function BoardPage() {
+  // False during server render and hydration, true from the first client
+  // render after. The clock is only drawn once mounted: the static export
+  // holds the build-time text, and hydrating a ticking clock against it
+  // was a mismatch on every load.
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
   const [sessions, setSessions] = useState<BoardSession[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -491,6 +598,27 @@ export default function BoardPage() {
   // ?fullscreen=1: draw the eye to the button on a fresh screen
   const [nudge, setNudge] = useState(false);
 
+  /**
+   * Room view is one lane per room (now / next / then); list view is one line
+   * per session in time order across every room. ?view=list sets it for a
+   * screen nobody touches; the tabs set it by hand and the choice is kept in
+   * localStorage so a reload on the same TV comes back the same way.
+   */
+  const [view, setView] = useState<BoardView>("rooms");
+  const chooseView = useCallback((v: BoardView) => {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* private mode */ }
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement | null)?.tagName === "INPUT") return;
+      if (e.key === "1" || e.key === "r" || e.key === "R") chooseView("rooms");
+      if (e.key === "2" || e.key === "l" || e.key === "L") chooseView("list");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chooseView]);
+
   // when the programme last loaded cleanly; drives the footer's health dot
   const [lastGood, setLastGood] = useState(0);
   // the query string has been read; nothing loads before then, or a demo
@@ -507,6 +635,10 @@ export default function BoardPage() {
     const day = q.get("day");
     setDayOverride(day ? Number(day) : null);
     setNudge(q.get("fullscreen") === "1");
+    const v = q.get("view");
+    let remembered: string | null = null;
+    try { remembered = localStorage.getItem(VIEW_KEY); } catch { /* private mode */ }
+    setView(v === "list" || v === "rooms" ? v : remembered === "list" ? "list" : "rooms");
     setReady(true);
   }, []);
 
@@ -571,6 +703,11 @@ export default function BoardPage() {
     [sessions, date, now, roomOrder],
   );
 
+  const rows = useMemo(
+    () => (sessions && date !== null ? queueList(sessions.filter((s) => summitDateKey(s.startsAt) === date), now) : []),
+    [sessions, date, now],
+  );
+
   // `now` is the ticking clock state, so this re-evaluates every second
   // without reading the wall clock during render
   const stale = error !== null && now - lastGood > STALE_MS;
@@ -607,10 +744,38 @@ export default function BoardPage() {
           </h1>
         </div>
         <div className="flex items-end gap-[calc(1.6*var(--u))] md:text-right">
+          {/* view tabs: a TV is set once, a phone can flick between them */}
+          <div
+            role="tablist"
+            aria-label="Board view"
+            className="flex rounded-full border border-summit-lilac/15 bg-summit-lilac/5 p-[calc(0.25*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.22em]"
+          >
+            {(["rooms", "list"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => chooseView(v)}
+                className={`relative rounded-full px-[calc(1.1*var(--u))] py-[calc(0.5*var(--u))] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise ${
+                  view === v ? "text-summit-violet" : "text-summit-smoke hover:text-summit-lilac"
+                }`}
+              >
+                {view === v && (
+                  <motion.span
+                    layoutId="board-view-tab"
+                    className="absolute inset-0 rounded-full bg-summit-lilac"
+                    transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                  />
+                )}
+                <span className="relative">{v === "rooms" ? "Room view" : "List view"}</span>
+              </button>
+            ))}
+          </div>
           <div>
-            <p className="text-[calc(1*var(--u))] uppercase tracking-[0.3em] text-summit-smoke">{dateFmt.format(new Date(now))}</p>
+            <p className="text-[calc(1*var(--u))] uppercase tracking-[0.3em] text-summit-smoke">{mounted ? dateFmt.format(new Date(now)) : " "}</p>
             <Rolling
-              text={clockFmt.format(new Date(now))}
+              text={mounted ? clockFmt.format(new Date(now)) : "--:--:--"}
               className="mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(3.6*var(--u))] font-bold leading-none tracking-[-0.02em]"
             />
           </div>
@@ -650,16 +815,48 @@ export default function BoardPage() {
         borders and the progress bars in step with the type, so a six-room
         board looks like the same board, smaller, not a different layout.
       */}
-      <div className="relative flex flex-col md:min-h-0 md:flex-1" style={{ zoom: wide ? Math.min(1, 3.4 / Math.max(1, lanes.length)) : 1 }}>
+      <div
+        className="relative flex flex-col md:min-h-0 md:flex-1"
+        style={{ zoom: wide ? (view === "rooms" ? Math.min(1, 3.4 / Math.max(1, lanes.length)) : Math.min(1, 6 / Math.max(1, rows.length))) : 1 }}
+      >
         {/* column legend */}
-        <div className="relative mt-[calc(1.2*var(--u))] hidden grid-cols-[14vw_1fr_1fr_0.7fr] gap-[calc(2*var(--u))] px-[calc(1.2*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70 md:grid">
-          <span>Room</span>
-          <span>Now</span>
-          <span>Next</span>
-          <span>Then</span>
-        </div>
+        {view === "rooms" ? (
+          <div className="relative mt-[calc(1.2*var(--u))] hidden grid-cols-[14vw_1fr_1fr_0.7fr] gap-[calc(2*var(--u))] px-[calc(1.2*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70 md:grid">
+            <span>Room</span>
+            <span>Now</span>
+            <span>Next</span>
+            <span>Then</span>
+          </div>
+        ) : (
+          <div className="relative mt-[calc(1.2*var(--u))] hidden grid-cols-[11vw_1fr_16vw_15vw] gap-[calc(2*var(--u))] px-[calc(1.6*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70 md:grid">
+            <span>Time</span>
+            <span>Session</span>
+            <span>Room</span>
+            <span className="md:text-right">Status</span>
+          </div>
+        )}
+
+        {/* list view: one line per session, in time order */}
+        {view === "list" && (
+          <LayoutGroup>
+            <ul className="relative mt-[calc(0.6*var(--u))] flex flex-col gap-[calc(0.7*var(--u))] md:min-h-0 md:flex-1">
+              <AnimatePresence initial={false}>
+                {rows.map((s) => (
+                  <ListRow key={s.id} session={s} now={now} />
+                ))}
+              </AnimatePresence>
+              {sessions === null && !error && (
+                <li className="flex flex-1 items-center justify-center text-[calc(1.4*var(--u))] text-summit-smoke">Loading the programme…</li>
+              )}
+              {sessions !== null && rows.length === 0 && (
+                <li className="flex flex-1 items-center justify-center text-[calc(1.4*var(--u))] text-summit-smoke">Nothing more scheduled for today.</li>
+              )}
+            </ul>
+          </LayoutGroup>
+        )}
 
         {/* lanes */}
+        {view === "rooms" && (
         <LayoutGroup>
           <section className="relative mt-[calc(0.6*var(--u))] flex flex-col gap-[calc(0.9*var(--u))] md:min-h-0 md:flex-1" style={{ perspective: "1600px" }}>
             <AnimatePresence initial={false}>
@@ -708,6 +905,7 @@ export default function BoardPage() {
             )}
           </section>
         </LayoutGroup>
+        )}
       </div>
 
       {/* footer */}
