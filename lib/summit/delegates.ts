@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 
-export const TIERS = ["standard", "vip", "vvip", "press", "admin"] as const;
+/**
+ * "session_admin" is staff, not a delegate tier as such: a caption operator
+ * who sees the Capture tab and nothing else. It sits in the same list because
+ * the API carries it in the same field.
+ */
+export const TIERS = ["standard", "vip", "vvip", "press", "admin", "session_admin"] as const;
+export type StaffRole = "admin" | "session_admin";
+export const isStaff = (tier: string | undefined): tier is StaffRole =>
+  tier === "admin" || tier === "session_admin";
 export type Tier = (typeof TIERS)[number];
 export const GRANTABLE_TIERS = ["standard", "vip", "vvip", "press"] as const;
 
@@ -85,17 +93,32 @@ export function useAdmins() {
   });
 }
 
+/** The signed-in operator. What they may see in the console hangs on `accessTier`. */
+export function useMe() {
+  return useQuery({
+    queryKey: ["me"],
+    queryFn: () => api<Delegate>("/delegates/me"),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Grant or revoke staff access. `role` picks what is granted: "admin" (the
+ * whole console) or "session_admin" (Capture only). Revoking needs no role;
+ * either kind goes back to a standard delegate.
+ */
 export function useSetAdmin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, admin }: { id: string; admin: boolean }) =>
+    mutationFn: ({ id, admin, role }: { id: string; admin: boolean; role?: StaffRole }) =>
       api<Delegate>(`/delegates/${id}/admin`, {
         method: "PATCH",
-        body: JSON.stringify({ admin }),
+        body: JSON.stringify(role ? { admin, role } : { admin }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admins"] });
       qc.invalidateQueries({ queryKey: ["delegates"] });
+      qc.invalidateQueries({ queryKey: ["me"] });
     },
   });
 }

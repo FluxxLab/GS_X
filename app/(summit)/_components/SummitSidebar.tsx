@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/summit/auth";
+import { useMe } from "@/lib/summit/delegates";
 
 const NAV = [
     {href: "/overview", label: "Overview", icon: LayoutDashboard},
@@ -47,10 +48,17 @@ const NAV = [
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { data: me } = useMe();
+  // a caption operator's console is one tab; the rest would only be 403s
+  const sessionAdmin = me?.accessTier === "session_admin";
+  const items = sessionAdmin ? NAV.filter((n) => n.href === "/capture") : NAV;
   return (
     <>
+      {sessionAdmin && (
+        <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.2em] text-summit-smoke/70">Session admin</p>
+      )}
       <nav className="flex flex-col gap-1">
-        {NAV.map(({ href, label, icon: Icon }) => (
+        {items.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
@@ -68,6 +76,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
+      {!sessionAdmin && (
       <div className="mt-auto border-t border-summit-lilac/10 pt-2">
         <Link
           href="/admin"
@@ -83,6 +92,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           Admin
         </Link>
       </div>
+      )}
     </>
   );
 }

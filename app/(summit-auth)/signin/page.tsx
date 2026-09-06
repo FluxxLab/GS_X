@@ -3,6 +3,7 @@ import { useState, } from "react";
 import { useRouter } from "next/navigation";
 import { Zap } from "lucide-react";
 import { login } from "@/lib/summit/auth";
+import { api } from "@/lib/summit/api";
 import Image from "next/image";
 
 const inputCls =
@@ -21,7 +22,9 @@ const inputCls =
         setError(null);
         try{
             await login(email, password);
-            router.push("/overview");
+            // a session admin's console starts and ends at Capture
+            const me = await api<{ accessTier?: string }>("/delegates/me").catch(() => null);
+            router.push(me?.accessTier === "session_admin" ? "/capture" : "/overview");
         } catch(err){
             setError((err as Error).message);
         } finally {

@@ -36,6 +36,7 @@ const TIER_STYLES: Record<Tier, string> = {
   vvip: "bg-summit-cerise/20 text-summit-cerise",
   press: "bg-summit-cerulean/15 text-summit-cerulean",
   admin: "bg-summit-green/15 text-summit-green",
+  session_admin: "bg-summit-cerulean/15 text-summit-cerulean",
 };
 
 export default function DelegatesPage() {
