@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Mic as MicIcon, ShieldPlus } from "lucide-react";
 import { Mic, ShieldCheck, ShieldOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isStaff, useAdmins, useDelegates, useSetAdmin } from "@/lib/summit/delegates";
+import { isStaff, useAdmins, useCreateStaff, useDelegates, useSetAdmin, type StaffRole } from "@/lib/summit/delegates";
 
 const inputCls =
   "rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -14,6 +15,28 @@ export default function TeamPage() {
   const [search, setSearch] = useState("");
   const { data: candidates } = useDelegates({ search });
   const [confirming, setConfirming] = useState<string | null>(null);
+
+  // the add-a-team-member form
+  const createStaff = useCreateStaff();
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "session_admin" as StaffRole });
+  const [created, setCreated] = useState<{ name: string; email: string; role: StaffRole } | null>(null);
+  const canSubmit = form.name.trim().length >= 2 && /\S+@\S+\.\S+/.test(form.email) && form.password.length >= 8;
+  const suggestPassword = () => {
+    // readable, no ambiguous glyphs, long enough to be a real password
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    const bytes = new Uint8Array(14);
+    crypto.getRandomValues(bytes);
+    const pw = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+    setForm((f) => ({ ...f, password: pw }));
+  };
+  const submitStaff = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!canSubmit || createStaff.isPending) return;
+    const payload = { ...form, name: form.name.trim(), email: form.email.trim().toLowerCase() };
+    await createStaff.mutateAsync(payload);
+    setCreated({ name: payload.name, email: payload.email, role: payload.role });
+    setForm({ name: "", email: "", password: "", role: payload.role });
+  };
 
   const nonAdmins = (candidates ?? []).filter((d) => !isStaff(d.accessTier));
   const fullAdmins = (admins ?? []).filter((a) => a.accessTier === "admin");
@@ -126,7 +149,87 @@ export default function TeamPage() {
 
       <section className="glass-card p-5">
         <h2 className="font-[family-name:var(--font-archivo)] text-lg font-bold tracking-[-0.02em]">
-          Grant access
+          Add a team member
+        </h2>
+        <p className="mt-1 text-xs text-summit-smoke">
+          Creates their console login straight away. No app registration, no code. Give them the
+          email and password; they sign in at this address.
+        </p>
+        <form onSubmit={submitStaff} className="mt-4 grid gap-3 md:grid-cols-2">
+          <input
+            className={inputCls}
+            placeholder="Full name"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            autoComplete="off"
+          />
+          <input
+            className={inputCls}
+            placeholder="Email"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            autoComplete="off"
+          />
+          <div className="flex gap-2">
+            <input
+              className={cn(inputCls, "flex-1 font-mono")}
+              placeholder="Password (8+ characters)"
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              onClick={suggestPassword}
+              className="rounded-xl border border-summit-lilac/15 px-3 text-xs text-summit-smoke hover:text-summit-lilac"
+            >
+              Suggest
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            {(["session_admin", "admin"] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, role: r }))}
+                aria-pressed={form.role === r}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs transition",
+                  form.role === r
+                    ? "border-summit-cerise bg-summit-cerise/15 text-summit-lilac"
+                    : "border-summit-lilac/15 text-summit-smoke hover:text-summit-lilac",
+                )}
+              >
+                {r === "session_admin" ? <MicIcon className="size-3.5" /> : <ShieldPlus className="size-3.5" />}
+                {r === "session_admin" ? "Session admin (Capture only)" : "Admin (whole console)"}
+              </button>
+            ))}
+          </div>
+          <div className="md:col-span-2 flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={!canSubmit || createStaff.isPending}
+              className="rounded-[20px] bg-summit-cerise px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {createStaff.isPending ? "Creating…" : "Create login"}
+            </button>
+            {createStaff.error && (
+              <p className="text-sm text-summit-cream">{(createStaff.error as Error).message}</p>
+            )}
+            {created && !createStaff.error && (
+              <p className="text-sm text-summit-green">
+                {created.name} can now sign in as {created.email}
+                {created.role === "session_admin" ? " and will see Capture only." : " with full access."}
+              </p>
+            )}
+          </div>
+        </form>
+      </section>
+
+      <section className="glass-card p-5">
+        <h2 className="font-[family-name:var(--font-archivo)] text-lg font-bold tracking-[-0.02em]">
+          Promote an existing delegate
         </h2>
         <p className="mt-1 text-xs text-summit-smoke">
           Search a registered delegate to promote. They keep their existing login. Make them an

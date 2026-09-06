@@ -93,6 +93,23 @@ export function useAdmins() {
   });
 }
 
+/**
+ * Create a staff login outright: name, email, password and role. No app
+ * registration, no code. The password goes to the person by whatever channel
+ * the admin chooses; the API never sends it anywhere.
+ */
+export function useCreateStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; email: string; password: string; role: StaffRole }) =>
+      api<Delegate>("/delegates/staff", { method: "POST", body: JSON.stringify(input) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admins"] });
+      qc.invalidateQueries({ queryKey: ["delegates"] });
+    },
+  });
+}
+
 /** The signed-in operator. What they may see in the console hangs on `accessTier`. */
 export function useMe() {
   return useQuery({
