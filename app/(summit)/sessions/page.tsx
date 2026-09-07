@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Eye, EyeOff, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { read, utils } from "xlsx";
 import { cn } from "@/lib/utils";
@@ -113,6 +113,15 @@ export default function SessionsPage(){
     };
     const [editing, setEditing] = useState<Session | null>(null);
     const [creating, setCreating] = useState(false);
+    /**
+     * The editor mounts above the list. With eighty rows, opening a session
+     * from the bottom of the page put the form two screens up and the click
+     * looked like it did nothing - so the page scrolls to it.
+     */
+    const formRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (creating || editing) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, [creating, editing]);
     /** Free-text filter over the agenda. Matches title, room, type, track and
      *  speaker names - an operator looking for a session mid-event knows the
      *  room or the speaker at least as often as the exact title. */
@@ -540,10 +549,16 @@ export default function SessionsPage(){
       )}
 
       {(creating || editing) && (
-        <SessionForm
-          session={editing}
-          onClose={() => { setCreating(false); setEditing(null); }}
-        />
+        <div ref={formRef} className="scroll-mt-4">
+          {/* keyed on the session: the form seeds its state from the session
+              once, on mount, so without this opening a second session would
+              show the first one's values */}
+          <SessionForm
+            key={editing?.id ?? "new"}
+            session={editing}
+            onClose={() => { setCreating(false); setEditing(null); }}
+          />
+        </div>
       )}
 
       {isLoading && <p className="text-sm text-summit-smoke">Loading agenda…</p>}

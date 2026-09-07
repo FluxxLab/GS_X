@@ -765,6 +765,27 @@ export default function BoardPage() {
       lock = null;
     };
   }, [fullscreen]);
+  // In full screen the cursor hides only once the mouse has been still for a
+  // few seconds, and comes back the moment it moves - a TV shows a clean
+  // board, and a person at the laptop can still reach the tabs and arrows.
+  const [cursorIdle, setCursorIdle] = useState(false);
+  useEffect(() => {
+    if (!fullscreen) { setCursorIdle(false); return; }
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const arm = () => {
+      setCursorIdle(false);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setCursorIdle(true), 3000);
+    };
+    arm();
+    window.addEventListener("mousemove", arm);
+    window.addEventListener("mousedown", arm);
+    return () => {
+      window.removeEventListener("mousemove", arm);
+      window.removeEventListener("mousedown", arm);
+      if (timer) clearTimeout(timer);
+    };
+  }, [fullscreen]);
   // ?fullscreen=1: draw the eye to the button on a fresh screen
   const [nudge, setNudge] = useState(false);
 
@@ -895,7 +916,7 @@ export default function BoardPage() {
   const stale = error !== null && now - lastGood > STALE_MS;
 
   return (
-    <main className={`relative flex min-h-full w-full flex-col overflow-hidden px-[calc(3*var(--u))] py-[calc(2.2*var(--u))] md:h-full ${fullscreen ? "md:cursor-none" : ""}`}>
+    <main className={`relative flex min-h-full w-full flex-col overflow-hidden px-[calc(3*var(--u))] py-[calc(2.2*var(--u))] md:h-full ${fullscreen && cursorIdle ? "md:cursor-none" : ""}`}>
       {/* ambient wash: the console's violet with a slow cerise breath in one corner */}
       <motion.div
         aria-hidden
@@ -982,7 +1003,8 @@ export default function BoardPage() {
               type="button"
               onClick={toggleFullscreen}
               aria-label="Leave full screen (Esc)"
-              className="opacity-0 focus-visible:opacity-100"
+              title="Leave full screen (Esc)"
+              className={`flex h-[calc(2.6*var(--u))] w-[calc(2.6*var(--u))] items-center justify-center rounded-full border border-summit-lilac/20 text-summit-lilac/70 transition hover:border-summit-cerise/60 hover:text-summit-lilac focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise ${cursorIdle ? "opacity-0" : "opacity-100"}`}
             >
               <Minimize2 className="h-[calc(1.1*var(--u))] w-[calc(1.1*var(--u))]" aria-hidden />
             </button>
