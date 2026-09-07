@@ -111,6 +111,46 @@ export function useDeleteSession() {
   });
 }
 
+/**
+ * Delete a batch in one call. The API deletes what it can and answers 409
+ * naming the sessions it kept because they have activity; the caller shows
+ * that and retries with force once the organiser confirms. Sessions already
+ * gone are skipped server-side, so the retry is safe.
+ */
+export function useBulkDeleteSessions() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { ids: string[]; force?: boolean }>({
+    mutationFn: ({ ids, force }) =>
+      api<void>(`/sessions/bulk-delete`, {
+        method: "POST",
+        body: JSON.stringify({ ids, force: !!force }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sessions"] }),
+  });
+}
+
+/**
+ * Set one status on many sessions. There is no batch endpoint for status -
+ * each change is its own transition with its own side effects (going live
+ * sends a push), so this is the per-session call run in parallel.
+ */
+export function useBulkUpdateSessionStatus() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { ids: string[]; status: SessionStatus }>({
+    mutationFn: async ({ ids, status }) => {
+      await Promise.all(
+        ids.map((id) =>
+          api<Session>(`/sessions/${id}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({ status }),
+          }),
+        ),
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sessions"] }),
+  });
+}
+
 export function useUpdateSessionStatus() {
   const qc = useQueryClient();
   return useMutation<Session, Error, { id: string; status: SessionStatus }>({

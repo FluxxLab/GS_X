@@ -6,6 +6,8 @@ import { read, utils } from "xlsx";
 import { cn } from "@/lib/utils";
 import {
   SESSION_STATUSES,
+  useBulkDeleteSessions,
+  useBulkUpdateSessionStatus,
   useDeleteSession,
   useSessions,
   useUpdateSessionStatus,
@@ -74,6 +76,41 @@ export default function SessionsPage(){
     const remove = useDeleteSession();
     // { id } = armed; { id, warning } = the API refused and named the cost
     const [confirmDelete, setConfirmDelete] = useState<{ id: string; warning?: string } | null>(null);
+    /**
+     * Bulk actions. Ticked ids live here; the bar above the list acts on
+     * them. Delete is two-step like the single delete: the first press arms,
+     * the second sends, and a 409 (some sessions have activity) turns the
+     * button into "Delete anyway" carrying the API's own account of the cost.
+     */
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const bulkDelete = useBulkDeleteSessions();
+    const bulkStatus = useBulkUpdateSessionStatus();
+    const [confirmBulk, setConfirmBulk] = useState<{ armed: boolean; warning?: string }>({ armed: false });
+    const toggleSelected = (id: string) =>
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    const clearSelection = () => {
+      setSelected(new Set());
+      setConfirmBulk({ armed: false });
+    };
+    const runBulkDelete = () => {
+      if (!confirmBulk.armed) {
+        setConfirmBulk({ armed: true });
+        return;
+      }
+      bulkDelete.mutate(
+        { ids: [...selected], force: !!confirmBulk.warning },
+        {
+          onSuccess: clearSelection,
+          // the deletable ones are gone; keep only what the API refused
+          onError: (err) => setConfirmBulk({ armed: true, warning: err.message }),
+        },
+      );
+    };
     const [editing, setEditing] = useState<Session | null>(null);
     const [creating, setCreating] = useState(false);
     /** Free-text filter over the agenda. Matches title, room, type, track and
@@ -244,6 +281,69 @@ export default function SessionsPage(){
           </button>
         </div>
       </header>
+
+      {selected.size > 0 && (
+        <div className="glass-card flex flex-wrap items-center gap-3 px-5 py-3">
+          <span className="text-sm text-summit-lilac">
+            {selected.size} session{selected.size === 1 ? "" : "s"} selected
+          </span>
+          <Select
+            onValueChange={(val) =>
+              bulkStatus.mutate(
+                { ids: [...selected], status: val as SessionStatus },
+                { onSuccess: clearSelection },
+              )
+            }
+          >
+            <SelectTrigger className="h-8 w-[160px] rounded-full border-summit-lilac/15 bg-summit-lilac/5 text-xs">
+              <SelectValue placeholder={bulkStatus.isPending ? "Updating…" : "Set status…"} />
+            </SelectTrigger>
+            <SelectContent>
+              {SESSION_STATUSES.map((st) => (
+                <SelectItem key={st} value={st}>
+                  {st}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <button
+            type="button"
+            onClick={runBulkDelete}
+            disabled={bulkDelete.isPending}
+            title={confirmBulk.warning ?? "Delete selected sessions"}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors disabled:opacity-50",
+              confirmBulk.armed
+                ? confirmBulk.warning
+                  ? "bg-summit-cerise text-white"
+                  : "bg-summit-cream text-summit-violet"
+                : "bg-summit-lilac/10 text-summit-lilac hover:bg-summit-lilac/20",
+            )}
+          >
+            <Trash2 className="size-3.5" />
+            {bulkDelete.isPending
+              ? "Deleting…"
+              : confirmBulk.armed
+                ? confirmBulk.warning
+                  ? "Delete anyway"
+                  : `Confirm delete ${selected.size}`
+                : "Delete"}
+          </button>
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs text-summit-smoke hover:text-summit-lilac"
+          >
+            <X className="size-3.5" /> Clear
+          </button>
+          {confirmBulk.warning && (
+            <p className="basis-full text-xs text-summit-cream">{confirmBulk.warning}</p>
+          )}
+          {bulkStatus.error && (
+            <p className="basis-full text-xs text-summit-cream">{bulkStatus.error.message}</p>
+          )}
+        </div>
+      )}
 
       {/* Search over the whole agenda. Sits above the day sections so it
           filters across both days at once - a session an operator is hunting
@@ -473,7 +573,14 @@ export default function SessionsPage(){
             {list
               .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
               .map((s) => (
-                <li key={s.id} className="flex items-center gap-4 py-3">
+                <li key={s.id} className={cn("flex items-center gap-4 py-3", selected.has(s.id) && "bg-summit-lilac/5")}>
+                  <input
+                    type="checkbox"
+                    className="size-4 shrink-0 accent-summit-cerise"
+                    checked={selected.has(s.id)}
+                    onChange={() => toggleSelected(s.id)}
+                    aria-label={`Select ${s.title}`}
+                  />
                   <span className="w-24 shrink-0 text-sm text-summit-smoke">
                     {fmtTime(s.startsAt)}–{fmtTime(s.endsAt)}
                   </span>
