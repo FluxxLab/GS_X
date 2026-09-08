@@ -29,8 +29,11 @@ export function useCapture(roomName: string | null, diarise = true) {
   const [signal, setSignal] = useState(true);
   const [livekitOk, setLivekitOk] = useState<boolean | null>(null);
   const [livekitError, setLivekitError] = useState<string | null>(null);
+  /** False while the socket is down mid-capture, so the desk can see why. */
+  const [connected, setConnected] = useState(true);
   const res = useRef<CaptureResources | null>(null);
   const lastSoundRef = useRef(0);
+  const cleanupSocketRef = useRef<(() => void) | null>(null);
 
   const stop = useCallback(async () => {
     const r = res.current;
@@ -44,12 +47,15 @@ export function useCapture(roomName: string | null, diarise = true) {
       await r.audioCtx.close().catch(() => {});
       await r.livekit?.disconnect().catch(() => {});
     }
+    cleanupSocketRef.current?.();
+    cleanupSocketRef.current = null;
     if (roomName) leaveRoom("capture:start", "caption:stop", { room: roomName, diarise });
     setState("idle");
     setLevel(0);
     setSignal(true);
     setLivekitOk(null);
     setLivekitError(null);
+    setConnected(true);
   }, [roomName, diarise]);
 
   const start = useCallback(async () => {
@@ -94,10 +100,48 @@ export function useCapture(roomName: string | null, diarise = true) {
         mimeType: "audio/webm;codecs=opus",
         audioBitsPerSecond: 128_000,
       });
+      /**
+       * `volatile`, so a chunk recorded while the link is down is thrown away
+       * rather than queued. Socket.IO buffers ordinary emits and floods them
+       * on reconnect, which on venue wifi means minutes-old audio arriving
+       * ahead of the live room and eating the little bandwidth there is.
+       * Live audio that missed its moment is worth nothing.
+       */
       recorder.ondataavailable = async (e) => {
-        if (e.data.size > 0) socket.emit("capture:audio", await e.data.arrayBuffer());
+        if (e.data.size > 0) socket.volatile.emit("capture:audio", await e.data.arrayBuffer());
       };
       recorder.start(250);
+
+      /**
+       * A dropped socket costs more than the seconds it is down. The backend
+       * keeps the capture room in per-connection state, and the transcriber
+       * expects the WebM header that only arrives in a recorder's first
+       * chunk - so after a reconnect the stream is rejoined and the recorder
+       * restarted, which emits a fresh header. Without this the desk looks
+       * fine and no caption has appeared since the blip.
+       */
+      const onDisconnect = () => setConnected(false);
+      const onReconnect = () => {
+        setConnected(true);
+        void (async () => {
+          try {
+            await joinRoomWithAck("capture:start", { room: roomName, diarise });
+          } catch {
+            // the room registry replays it too; a failure here is not fatal
+          }
+          const r = res.current;
+          if (!r) return;
+          if (r.recorder.state !== "inactive") r.recorder.stop();
+          r.recorder.start(250);
+        })();
+      };
+      socket.on("disconnect", onDisconnect);
+      socket.on("connect", onReconnect);
+      cleanupSocketRef.current = () => {
+        socket.off("disconnect", onDisconnect);
+        socket.off("connect", onReconnect);
+      };
+      setConnected(socket.connected);
 
       // level meter
       const audioCtx = new AudioContext();
@@ -174,5 +218,5 @@ export function useCapture(roomName: string | null, diarise = true) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { state, error, level, signal, livekitOk, livekitError, start, stop };
+  return { state, error, level, signal, livekitOk, livekitError, connected, start, stop };
 }

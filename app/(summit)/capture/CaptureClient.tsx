@@ -40,7 +40,7 @@ export default function CaptureClient() {
    * room; the diariser is guessing.
    */
   const [diarise, setDiarise] = useState(true);
-  const { state, error, level, signal, livekitOk, livekitError, start, stop } =
+  const { state, error, level, signal, livekitOk, livekitError, connected, start, stop } =
     useCapture(room || null, diarise);
 
   const rooms = [...new Set((sessions ?? []).map((s) => s.room))].sort();
@@ -206,8 +206,8 @@ export default function CaptureClient() {
         </div>
 
         <div className="flex gap-4 text-xs text-summit-smoke">
-          <span className={cn(capturing && "text-summit-green")}>
-            ● captions {capturing ? "streaming" : "off"}
+          <span className={cn(capturing && connected && "text-summit-green", capturing && !connected && "text-summit-cream")}>
+            ● captions {!capturing ? "off" : connected ? "streaming" : "reconnecting"}
           </span>
           <span className={cn(livekitOk === true && "text-summit-green", livekitOk === false && "text-summit-cream")}>
             ● remote audio{" "}
@@ -215,6 +215,19 @@ export default function CaptureClient() {
           </span>
         </div>
 
+        {capturing && (
+          <p className="text-xs text-summit-smoke">
+            Captions follow whichever session is live in this room, so leave capture running
+            between sessions. While no session is marked live the audio is discarded on purpose,
+            which is why the meter moves but no captions appear during a break.
+          </p>
+        )}
+        {capturing && !connected && (
+          <p className="text-xs text-summit-cream">
+            Network dropped. Audio recorded while offline is discarded, and captions resume by
+            themselves once the connection is back. Leave this page open.
+          </p>
+        )}
         {livekitOk === false && livekitError && (
           <p className="text-xs text-summit-smoke">Remote audio: {livekitError}</p>
         )}
