@@ -31,7 +31,7 @@ export default function BoardLayout({ children }: Readonly<{ children: React.Rea
       // it. One viewport-width percent on a TV, where the board fills the
       // screen; larger on a phone, where 1vw is four pixels and the board
       // scrolls instead of fitting.
-      className={`${archivo.variable} ${inter.variable} min-h-dvh w-screen overflow-y-auto bg-summit-violet font-[family-name:var(--font-summit)] text-summit-lilac [--u:2.6vw] md:h-dvh md:overflow-hidden md:[--u:1vw]`}
+      className={`${archivo.variable} ${inter.variable} min-h-dvh w-screen overflow-y-auto bg-summit-violet font-[family-name:var(--font-summit)] text-summit-lilac [--u:2.6vw] [--tu:calc(2*var(--u))] md:h-dvh md:overflow-hidden md:[--u:1vw]`}
     >
       {children}
     </div>
