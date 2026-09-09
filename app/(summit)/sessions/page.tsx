@@ -16,7 +16,7 @@ import {
 } from "@/lib/summit/sessions";
 import { normaliseAgenda, type AgendaImport } from "@/lib/summit/agenda-import";
 import { speakerKey } from "@/lib/summit/agenda-speakers";
-import { useApplyAgenda } from "@/lib/summit/agenda-apply";
+import { planImport, useApplyAgenda } from "@/lib/summit/agenda-apply";
 import {
   useSpeakers,
   useSetSpeakerReveal,
@@ -189,18 +189,11 @@ export default function SessionsPage(){
         return next;
       });
 
-    /** How many rows are already in the database, so the button can say
-     *  whether this run will create sessions or only attach speakers. */
-    const existingKeys = new Set(
-      (sessions ?? []).map((s) => `${s.title.trim().toLowerCase()}|${Date.parse(s.startsAt)}`),
-    );
+    /** How many rows are new, so the button can say whether this run will
+     *  create sessions or only update existing ones. Same matcher as the
+     *  import itself, so the label and the outcome agree. */
     const newRows = staged
-      ? staged.rows.filter(
-          (r) =>
-            !existingKeys.has(
-              `${r.session.title.trim().toLowerCase()}|${Date.parse(r.session.startsAt)}`,
-            ),
-        ).length
+      ? planImport(staged.rows, sessions ?? []).matches.filter((m) => m === null).length
       : 0;
 
     const matching = (sessions ?? []).filter((s) => matchesQuery(s, query));
@@ -290,6 +283,70 @@ export default function SessionsPage(){
           </button>
         </div>
       </header>
+
+      {/* After an import: what the database still holds on those dates that
+          the sheet no longer lists. Left in place by default - a session with
+          bookmarks or attendance is refused by the API without force - and
+          removed in one go once the operator has looked. */}
+      {apply.data && apply.data.stale.length > 0 && (
+        <div className="glass-card flex flex-col gap-3 px-5 py-4">
+          <p className="text-sm text-summit-lilac">
+            {apply.data.stale.length} session{apply.data.stale.length === 1 ? " is" : "s are"} in the database but not in the sheet you just imported.
+            {" "}Duplicates from an earlier upload, or sessions the new agenda dropped.
+          </p>
+          <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto text-xs text-summit-smoke">
+            {apply.data.stale.map((s) => (
+              <li key={s.id}>
+                Day {s.day} · {fmtTime(s.startsAt)}–{fmtTime(s.endsAt)} · {s.room} · {s.title}
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirmBulk.armed) {
+                  setConfirmBulk({ armed: true });
+                  return;
+                }
+                bulkDelete.mutate(
+                  { ids: apply.data!.stale.map((s) => s.id), force: !!confirmBulk.warning },
+                  {
+                    onSuccess: () => { setConfirmBulk({ armed: false }); apply.reset(); },
+                    onError: (err) => setConfirmBulk({ armed: true, warning: err.message }),
+                  },
+                );
+              }}
+              disabled={bulkDelete.isPending}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors disabled:opacity-50",
+                confirmBulk.armed
+                  ? confirmBulk.warning
+                    ? "bg-summit-cerise text-white"
+                    : "bg-summit-cream text-summit-violet"
+                  : "bg-summit-lilac/10 text-summit-lilac hover:bg-summit-lilac/20",
+              )}
+            >
+              <Trash2 className="size-3.5" />
+              {bulkDelete.isPending
+                ? "Deleting…"
+                : confirmBulk.armed
+                  ? confirmBulk.warning
+                    ? "Delete anyway"
+                    : `Confirm delete ${apply.data.stale.length}`
+                  : "Delete them"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setConfirmBulk({ armed: false }); apply.reset(); }}
+              className="rounded-full px-3 py-1.5 text-xs text-summit-smoke hover:text-summit-lilac"
+            >
+              Keep them
+            </button>
+            {confirmBulk.warning && <p className="basis-full text-xs text-summit-cream">{confirmBulk.warning}</p>}
+          </div>
+        </div>
+      )}
 
       {selected.size > 0 && (
         <div className="glass-card flex flex-wrap items-center gap-3 px-5 py-3">

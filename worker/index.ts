@@ -26,7 +26,11 @@ const API_BASE_URL_FALLBACK = "https://18-175-94-245.sslip.io/api/v1";
 
 const ACCESS_COOKIE = "gs26_access";
 const REFRESH_COOKIE = "gs26_refresh";
-const ACCESS_TTL = 60 * 60; // 1 h - matches the API's access-token life
+// 9 h, matching JWT_ACCESS_TTL on the API. When this cookie outlived the
+// token inside it, every expiry produced a burst of parallel 401s, each
+// racing to spend the same refresh token; one won and the others were read
+// as invalid, which signed the operator out in the middle of a session.
+const ACCESS_TTL = 60 * 60 * 9;
 const REFRESH_TTL = 60 * 60 * 24 * 7; // 7 d - matches the API's refresh row
 
 /** `/api/gs26/<path>` on this origin maps to `<API_BASE_URL>/<path>`. */
