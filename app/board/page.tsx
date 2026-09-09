@@ -70,12 +70,12 @@ const STALE_MS = 30_000;
  * it leaves the board and the next room moves up. Five is what stays legible
  * from the back of a hall on a 1080p screen.
  */
-const MAX_ROWS = 3;
+const MAX_ROWS = 5;
 /**
  * The list view is one line per session across every room, so it fits more
  * than the room view before the type gets too small to read from the back.
  */
-const MAX_LIST_ROWS = 5;
+const MAX_LIST_ROWS = 9;
 /** Beyond this a countdown stops meaning anything; show the start time. */
 const FAR_MS = 6 * 3600_000;
 
@@ -298,7 +298,7 @@ function When({ iso, now, size, accent }: { iso: string; now: number; size: stri
   const cls = `font-[family-name:var(--font-archivo)] ${size} font-bold leading-none tabular-nums ${accent ? "text-summit-cerulean" : "text-summit-lilac"}`;
   return (
     <span className="flex items-baseline gap-[calc(0.4*var(--u))] whitespace-nowrap">
-      {w.label && <span className="text-[calc(0.9*var(--tu))] uppercase tracking-[0.18em] text-summit-smoke">{w.label}</span>}
+      {w.label && <span className="text-[calc(0.9*var(--u))] uppercase tracking-[0.18em] text-summit-smoke">{w.label}</span>}
       {w.rolling ? <Rolling text={w.value} className={cls} /> : <span className={cls}>{w.value}</span>}
     </span>
   );
@@ -325,7 +325,7 @@ function Speakers({ session, muted }: { session: BoardSession; muted?: boolean }
   const names = (session.speakers ?? []).map((s) => s.name).filter(Boolean);
   if (names.length === 0) return null;
   return (
-    <p className={`truncate text-[calc(1.15*var(--tu))] leading-tight ${muted ? "text-summit-smoke/70" : "text-summit-smoke"}`}>
+    <p className={`truncate text-[calc(1.15*var(--u))] leading-tight ${muted ? "text-summit-smoke/70" : "text-summit-smoke"}`}>
       {names.slice(0, 3).join("  ·  ")}
       {names.length > 3 ? `  +${names.length - 3}` : ""}
     </p>
@@ -339,8 +339,8 @@ function NowCell({ lane, now }: { lane: RoomLane; now: number }) {
     const upcoming = lane.next;
     return (
       <motion.div key="idle" {...flip} className="flex h-full flex-col justify-center gap-[calc(0.4*var(--u))]">
-        <p className="text-[calc(1.05*var(--tu))] uppercase tracking-[0.2em] text-summit-smoke">{upcoming ? "Break" : "No further sessions"}</p>
-        {upcoming && <p className="text-[calc(1.5*var(--tu))] text-summit-lilac/70">Doors open {fmtTime(upcoming.startsAt)}</p>}
+        <p className="text-[calc(1.05*var(--u))] uppercase tracking-[0.2em] text-summit-smoke">{upcoming ? "Break" : "No further sessions"}</p>
+        {upcoming && <p className="text-[calc(1.5*var(--u))] text-summit-lilac/70">Doors open {fmtTime(upcoming.startsAt)}</p>}
       </motion.div>
     );
   }
@@ -352,24 +352,24 @@ function NowCell({ lane, now }: { lane: RoomLane; now: number }) {
     <motion.div key={s.id} {...flip} className="flex h-full flex-col justify-center gap-[calc(0.45*var(--u))]">
       <div className="flex flex-wrap items-center gap-[calc(0.7*var(--u))]">
         {lane.isLive ? (
-          <span className="inline-flex shrink-0 items-center gap-[calc(0.5*var(--u))] whitespace-nowrap rounded-full bg-summit-cerise/15 px-[calc(0.9*var(--u))] py-[calc(0.25*var(--u))] text-[calc(0.95*var(--tu))] font-semibold uppercase tracking-[0.18em] text-summit-cerise">
+          <span className="inline-flex shrink-0 items-center gap-[calc(0.5*var(--u))] whitespace-nowrap rounded-full bg-summit-cerise/15 px-[calc(0.9*var(--u))] py-[calc(0.25*var(--u))] text-[calc(0.95*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-cerise">
             <LiveDot /> Live
           </span>
         ) : (
-          <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-summit-lilac/10 px-[calc(0.9*var(--u))] py-[calc(0.25*var(--u))] text-[calc(0.95*var(--tu))] font-semibold uppercase tracking-[0.18em] text-summit-lilac/80">
+          <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-summit-lilac/10 px-[calc(0.9*var(--u))] py-[calc(0.25*var(--u))] text-[calc(0.95*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-lilac/80">
             In progress
           </span>
         )}
-        <span className="shrink-0 whitespace-nowrap text-[calc(1.05*var(--tu))] tabular-nums text-summit-smoke">{fmtRange(s)}</span>
+        <span className="shrink-0 whitespace-nowrap text-[calc(1.05*var(--u))] tabular-nums text-summit-smoke">{fmtRange(s)}</span>
         <span className="ml-auto flex items-baseline gap-[calc(0.4*var(--u))] whitespace-nowrap pr-[calc(0.4*var(--u))]">
-          <span className="text-[calc(0.9*var(--tu))] uppercase tracking-[0.18em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
+          <span className="text-[calc(0.9*var(--u))] uppercase tracking-[0.18em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
           <Rolling
             text={fmtRemaining(Math.abs(remaining))}
-            className={`font-[family-name:var(--font-archivo)] text-[calc(1.7*var(--tu))] font-bold leading-none tabular-nums ${overrun ? "text-summit-cream" : "text-summit-lilac"}`}
+            className={`font-[family-name:var(--font-archivo)] text-[calc(1.7*var(--u))] font-bold leading-none tabular-nums ${overrun ? "text-summit-cream" : "text-summit-lilac"}`}
           />
         </span>
       </div>
-      <h2 className="line-clamp-2 font-[family-name:var(--font-archivo)] text-[calc(1.85*var(--tu))] font-bold leading-[1.1] tracking-[-0.02em]">{s.title}</h2>
+      <h2 className="line-clamp-2 font-[family-name:var(--font-archivo)] text-[calc(1.85*var(--u))] font-bold leading-[1.1] tracking-[-0.02em]">{s.title}</h2>
       <Speakers session={s} />
     </motion.div>
   );
@@ -379,7 +379,7 @@ function NextCell({ session, now, label }: { session: BoardSession | null; now: 
   if (!session) {
     return (
       <motion.div key={`${label}-empty`} {...flip} className="flex h-full items-center">
-        <p className="text-[calc(1.05*var(--tu))] uppercase tracking-[0.2em] text-summit-smoke/50">—</p>
+        <p className="text-[calc(1.05*var(--u))] uppercase tracking-[0.2em] text-summit-smoke/50">—</p>
       </motion.div>
     );
   }
@@ -388,22 +388,22 @@ function NextCell({ session, now, label }: { session: BoardSession | null; now: 
     <motion.div key={session.id} {...flip} className="flex h-full flex-col justify-center gap-[calc(0.45*var(--u))]">
       <div className="flex flex-wrap items-center gap-[calc(0.7*var(--u))]">
         <span
-          className={`shrink-0 whitespace-nowrap rounded-full px-[calc(0.9*var(--u))] py-[calc(0.25*var(--u))] text-[calc(0.95*var(--tu))] font-semibold uppercase tracking-[0.18em] ${
+          className={`shrink-0 whitespace-nowrap rounded-full px-[calc(0.9*var(--u))] py-[calc(0.25*var(--u))] text-[calc(0.95*var(--u))] font-semibold uppercase tracking-[0.18em] ${
             label === "Next" ? "bg-summit-cerulean/15 text-summit-cerulean" : "bg-summit-lilac/8 text-summit-smoke"
           }`}
         >
           {label}
         </span>
-        <span className="shrink-0 whitespace-nowrap text-[calc(1.05*var(--tu))] tabular-nums text-summit-smoke">{fmtRange(session)}</span>
+        <span className="shrink-0 whitespace-nowrap text-[calc(1.05*var(--u))] tabular-nums text-summit-smoke">{fmtRange(session)}</span>
         {label === "Next" && (
           <span className="ml-auto pr-[calc(0.4*var(--u))]">
-            <When iso={session.startsAt} now={now} size="text-[calc(1.5*var(--tu))]" accent={soon} />
+            <When iso={session.startsAt} now={now} size="text-[calc(1.5*var(--u))]" accent={soon} />
           </span>
         )}
       </div>
       <h3
         className={`line-clamp-2 font-[family-name:var(--font-archivo)] font-bold leading-[1.12] tracking-[-0.015em] ${
-          label === "Next" ? "text-[calc(1.55*var(--tu))] text-summit-lilac" : "text-[calc(1.25*var(--tu))] text-summit-lilac/75"
+          label === "Next" ? "text-[calc(1.55*var(--u))] text-summit-lilac" : "text-[calc(1.25*var(--u))] text-summit-lilac/75"
         }`}
       >
         {session.title}
@@ -439,29 +439,29 @@ function ListRow({ session, now, onOpenRoom }: { session: BoardSession; now: num
     >
       {/* time */}
       <div className="flex flex-col justify-center">
-        <span className="font-[family-name:var(--font-archivo)] text-[calc(2*var(--tu))] font-bold leading-none tabular-nums tracking-[-0.02em]">{fmtTime(session.startsAt)}</span>
+        <span className="font-[family-name:var(--font-archivo)] text-[calc(2*var(--u))] font-bold leading-none tabular-nums tracking-[-0.02em]">{fmtTime(session.startsAt)}</span>
       </div>
       {/* what */}
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-[calc(0.6*var(--u))]">
           {isLive && (
-            <span className="inline-flex shrink-0 items-center gap-[calc(0.5*var(--u))] whitespace-nowrap rounded-full bg-summit-cerise/15 px-[calc(0.9*var(--u))] py-[calc(0.2*var(--u))] text-[calc(0.85*var(--tu))] font-semibold uppercase tracking-[0.18em] text-summit-cerise">
+            <span className="inline-flex shrink-0 items-center gap-[calc(0.5*var(--u))] whitespace-nowrap rounded-full bg-summit-cerise/15 px-[calc(0.9*var(--u))] py-[calc(0.2*var(--u))] text-[calc(0.85*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-cerise">
               <LiveDot /> Live
             </span>
           )}
           {inProgress && (
-            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-summit-lilac/10 px-[calc(0.9*var(--u))] py-[calc(0.2*var(--u))] text-[calc(0.85*var(--tu))] font-semibold uppercase tracking-[0.18em] text-summit-lilac/80">
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-summit-lilac/10 px-[calc(0.9*var(--u))] py-[calc(0.2*var(--u))] text-[calc(0.85*var(--u))] font-semibold uppercase tracking-[0.18em] text-summit-lilac/80">
               In progress
             </span>
           )}
           {/* the type only when it says something; "Session" on every line is noise */}
           {session.type && !/^session$/i.test(session.type) && (
-            <span className="truncate text-[calc(0.9*var(--tu))] uppercase tracking-[0.2em] text-summit-smoke/70">{session.type}</span>
+            <span className="truncate text-[calc(0.9*var(--u))] uppercase tracking-[0.2em] text-summit-smoke/70">{session.type}</span>
           )}
-          <span className="shrink-0 whitespace-nowrap text-[calc(0.95*var(--tu))] tabular-nums text-summit-smoke">{fmtRange(session)}</span>
+          <span className="shrink-0 whitespace-nowrap text-[calc(0.95*var(--u))] tabular-nums text-summit-smoke">{fmtRange(session)}</span>
         </div>
         {/* the live row gets a second line: it is the one people are reading */}
-        <h2 className={`mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] font-bold leading-[1.1] tracking-[-0.02em] ${isLive ? "line-clamp-2 text-[calc(1.75*var(--tu))]" : "line-clamp-1 text-[calc(1.5*var(--tu))]"}`}>
+        <h2 className={`mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] font-bold leading-[1.1] tracking-[-0.02em] ${isLive ? "line-clamp-2 text-[calc(1.75*var(--u))]" : "line-clamp-1 text-[calc(1.5*var(--u))]"}`}>
           {session.title}
         </h2>
       </div>
@@ -473,8 +473,8 @@ function ListRow({ session, now, onOpenRoom }: { session: BoardSession; now: num
         title="Door sign for this room"
         className="group flex flex-col justify-center text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise md:border-l md:border-summit-lilac/10 md:pl-[calc(1.4*var(--u))]"
       >
-        <span className="text-[calc(0.85*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke">Room</span>
-        <span className="mt-[calc(0.15*var(--u))] flex items-center gap-[calc(0.5*var(--u))] line-clamp-2 font-[family-name:var(--font-archivo)] text-[calc(1.45*var(--tu))] font-bold leading-[1.05] tracking-[-0.02em]">
+        <span className="text-[calc(0.85*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">Room</span>
+        <span className="mt-[calc(0.15*var(--u))] flex items-center gap-[calc(0.5*var(--u))] line-clamp-2 font-[family-name:var(--font-archivo)] text-[calc(1.45*var(--u))] font-bold leading-[1.05] tracking-[-0.02em]">
           {session.room}
           <ArrowUpRight className="h-[calc(1*var(--u))] w-[calc(1*var(--u))] shrink-0 text-summit-lilac/50 transition group-hover:text-summit-cerise" aria-hidden />
         </span>
@@ -483,14 +483,14 @@ function ListRow({ session, now, onOpenRoom }: { session: BoardSession; now: num
       <div className="flex items-center md:justify-end">
         {isLive || inProgress ? (
           <span className="flex items-baseline gap-[calc(0.4*var(--u))] whitespace-nowrap">
-            <span className="text-[calc(0.9*var(--tu))] uppercase tracking-[0.18em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
+            <span className="text-[calc(0.9*var(--u))] uppercase tracking-[0.18em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
             <Rolling
               text={fmtRemaining(Math.abs(remaining))}
-              className={`font-[family-name:var(--font-archivo)] text-[calc(1.7*var(--tu))] font-bold leading-none tabular-nums ${overrun ? "text-summit-cream" : "text-summit-lilac"}`}
+              className={`font-[family-name:var(--font-archivo)] text-[calc(1.7*var(--u))] font-bold leading-none tabular-nums ${overrun ? "text-summit-cream" : "text-summit-lilac"}`}
             />
           </span>
         ) : (
-          <When iso={session.startsAt} now={now} size="text-[calc(1.6*var(--tu))]" accent={soon} />
+          <When iso={session.startsAt} now={now} size="text-[calc(1.6*var(--u))]" accent={soon} />
         )}
       </div>
       {(isLive || inProgress) && <LaneProgress session={session} now={now} />}
@@ -552,13 +552,13 @@ function RoomSign({ lane, room, now, onClose }: { lane: RoomLane | null; room: s
       {/* room */}
       <header className="relative flex items-start justify-between gap-[calc(2*var(--u))]">
         <div>
-          <p className="text-[calc(1.1*var(--tu))] uppercase tracking-[0.35em] text-summit-smoke">Room</p>
-          <h1 className="mt-[calc(0.3*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(5*var(--tu))] font-black leading-[0.95] tracking-[-0.04em]">{room}</h1>
+          <p className="text-[calc(1.1*var(--u))] uppercase tracking-[0.35em] text-summit-smoke">Room</p>
+          <h1 className="mt-[calc(0.3*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(5*var(--u))] font-black leading-[0.95] tracking-[-0.04em]">{room}</h1>
         </div>
         <div className="flex items-start gap-[calc(1.5*var(--u))]">
           <Rolling
             text={clockFmt.format(new Date(now))}
-            className="font-[family-name:var(--font-archivo)] text-[calc(3*var(--tu))] font-bold leading-none tracking-[-0.02em] text-summit-lilac/80"
+            className="font-[family-name:var(--font-archivo)] text-[calc(3*var(--u))] font-bold leading-none tracking-[-0.02em] text-summit-lilac/80"
           />
           <button
             type="button"
@@ -578,39 +578,39 @@ function RoomSign({ lane, room, now, onClose }: { lane: RoomLane | null; room: s
             <motion.div key={current.id} {...flip} className="flex flex-col gap-[calc(1.2*var(--u))]">
               <div className="flex flex-wrap items-center gap-[calc(1*var(--u))]">
                 {isLive ? (
-                  <span className="inline-flex items-center gap-[calc(0.6*var(--u))] rounded-full bg-summit-cerise/15 px-[calc(1.4*var(--u))] py-[calc(0.45*var(--u))] text-[calc(1.3*var(--tu))] font-bold uppercase tracking-[0.2em] text-summit-cerise">
+                  <span className="inline-flex items-center gap-[calc(0.6*var(--u))] rounded-full bg-summit-cerise/15 px-[calc(1.4*var(--u))] py-[calc(0.45*var(--u))] text-[calc(1.3*var(--u))] font-bold uppercase tracking-[0.2em] text-summit-cerise">
                     <LiveDot /> Now live
                   </span>
                 ) : (
-                  <span className="inline-flex items-center rounded-full bg-summit-lilac/10 px-[calc(1.4*var(--u))] py-[calc(0.45*var(--u))] text-[calc(1.3*var(--tu))] font-bold uppercase tracking-[0.2em] text-summit-lilac/80">
+                  <span className="inline-flex items-center rounded-full bg-summit-lilac/10 px-[calc(1.4*var(--u))] py-[calc(0.45*var(--u))] text-[calc(1.3*var(--u))] font-bold uppercase tracking-[0.2em] text-summit-lilac/80">
                     Now
                   </span>
                 )}
-                <span className="text-[calc(1.6*var(--tu))] font-semibold tabular-nums text-summit-smoke">{fmtRange(current)}</span>
+                <span className="text-[calc(1.6*var(--u))] font-semibold tabular-nums text-summit-smoke">{fmtRange(current)}</span>
                 {current.type && !/^session$/i.test(current.type) && (
-                  <span className="text-[calc(1.2*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke/70">{current.type}</span>
+                  <span className="text-[calc(1.2*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70">{current.type}</span>
                 )}
               </div>
-              <h2 className="line-clamp-3 font-[family-name:var(--font-archivo)] text-[calc(6*var(--tu))] font-black leading-[1] tracking-[-0.04em]">{current.title}</h2>
+              <h2 className="line-clamp-3 font-[family-name:var(--font-archivo)] text-[calc(6*var(--u))] font-black leading-[1] tracking-[-0.04em]">{current.title}</h2>
               {names.length > 0 && (
-                <p className="text-[calc(2*var(--tu))] font-semibold leading-tight text-summit-lilac/85">
+                <p className="text-[calc(2*var(--u))] font-semibold leading-tight text-summit-lilac/85">
                   {names.slice(0, 4).join("  ·  ")}
                   {names.length > 4 ? `  +${names.length - 4}` : ""}
                 </p>
               )}
               <div className="mt-[calc(0.5*var(--u))] flex items-baseline gap-[calc(0.8*var(--u))]">
-                <span className="text-[calc(1.3*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
+                <span className="text-[calc(1.3*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">{overrun ? "Over by" : "Ends in"}</span>
                 <Rolling
                   text={fmtRemaining(Math.abs(remaining))}
-                  className={`font-[family-name:var(--font-archivo)] text-[calc(3.6*var(--tu))] font-black leading-none tabular-nums ${overrun ? "text-summit-cream" : "text-summit-lilac"}`}
+                  className={`font-[family-name:var(--font-archivo)] text-[calc(3.6*var(--u))] font-black leading-none tabular-nums ${overrun ? "text-summit-cream" : "text-summit-lilac"}`}
                 />
               </div>
             </motion.div>
           ) : (
             <motion.div key="idle" {...flip} className="flex flex-col gap-[calc(1*var(--u))]">
-              <p className="text-[calc(1.3*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke">{next ? "Break" : "Nothing further in this room today"}</p>
+              <p className="text-[calc(1.3*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">{next ? "Break" : "Nothing further in this room today"}</p>
               {next && (
-                <h2 className="font-[family-name:var(--font-archivo)] text-[calc(5*var(--tu))] font-black leading-[1] tracking-[-0.04em] text-summit-lilac/90">
+                <h2 className="font-[family-name:var(--font-archivo)] text-[calc(5*var(--u))] font-black leading-[1] tracking-[-0.04em] text-summit-lilac/90">
                   Doors open {fmtTime(next.startsAt)}
                 </h2>
               )}
@@ -624,13 +624,13 @@ function RoomSign({ lane, room, now, onClose }: { lane: RoomLane | null; room: s
         <AnimatePresence mode="wait" initial={false}>
           {next ? (
             <motion.div key={next.id} {...flip} className="flex flex-wrap items-baseline gap-x-[calc(1.5*var(--u))] gap-y-[calc(0.4*var(--u))]">
-              <span className="rounded-full bg-summit-cerulean/15 px-[calc(1.1*var(--u))] py-[calc(0.3*var(--u))] text-[calc(1*var(--tu))] font-bold uppercase tracking-[0.2em] text-summit-cerulean">Next</span>
-              <span className="text-[calc(1.3*var(--tu))] tabular-nums text-summit-smoke">{fmtRange(next)}</span>
-              <span className="min-w-0 flex-1 truncate font-[family-name:var(--font-archivo)] text-[calc(2*var(--tu))] font-bold tracking-[-0.02em]">{next.title}</span>
-              <When iso={next.startsAt} now={now} size="text-[calc(2*var(--tu))]" accent={+new Date(next.startsAt) - now <= 10 * 60_000} />
+              <span className="rounded-full bg-summit-cerulean/15 px-[calc(1.1*var(--u))] py-[calc(0.3*var(--u))] text-[calc(1*var(--u))] font-bold uppercase tracking-[0.2em] text-summit-cerulean">Next</span>
+              <span className="text-[calc(1.3*var(--u))] tabular-nums text-summit-smoke">{fmtRange(next)}</span>
+              <span className="min-w-0 flex-1 truncate font-[family-name:var(--font-archivo)] text-[calc(2*var(--u))] font-bold tracking-[-0.02em]">{next.title}</span>
+              <When iso={next.startsAt} now={now} size="text-[calc(2*var(--u))]" accent={+new Date(next.startsAt) - now <= 10 * 60_000} />
             </motion.div>
           ) : (
-            <motion.p key="none" {...flip} className="text-[calc(1.1*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke/60">No further sessions today</motion.p>
+            <motion.p key="none" {...flip} className="text-[calc(1.1*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/60">No further sessions today</motion.p>
           )}
         </AnimatePresence>
       </footer>
@@ -934,8 +934,8 @@ export default function BoardPage() {
       {/* header */}
       <header className="relative flex flex-col gap-[calc(1*var(--u))] border-b border-summit-lilac/10 pb-[calc(1.4*var(--u))] md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-[calc(1*var(--tu))] uppercase tracking-[0.3em] text-summit-smoke">Gender &amp; Inclusion Summit 2026 · Abuja</p>
-          <h1 className="mt-[calc(0.3*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(3*var(--tu))] font-bold leading-none tracking-[-0.03em]">
+          <p className="text-[calc(1*var(--u))] uppercase tracking-[0.3em] text-summit-smoke">Gender &amp; Inclusion Summit 2026 · Abuja</p>
+          <h1 className="mt-[calc(0.3*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(3*var(--u))] font-bold leading-none tracking-[-0.03em]">
             Agenda board
             {/* "Day N" only when this date is where Day N lives; a stray
                 date, such as a pre-summit test session, shows its date. */}
@@ -951,7 +951,7 @@ export default function BoardPage() {
           <div
             role="tablist"
             aria-label="Board view"
-            className="flex rounded-full border border-summit-lilac/15 bg-summit-lilac/5 p-[calc(0.25*var(--u))] text-[calc(0.9*var(--tu))] uppercase tracking-[0.22em]"
+            className="flex rounded-full border border-summit-lilac/15 bg-summit-lilac/5 p-[calc(0.25*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.22em]"
           >
             {(["rooms", "list"] as const).map((v) => (
               <button
@@ -976,10 +976,10 @@ export default function BoardPage() {
             ))}
           </div>
           <div>
-            <p className="text-[calc(1*var(--tu))] uppercase tracking-[0.3em] text-summit-smoke">{mounted ? dateFmt.format(new Date(now)) : " "}</p>
+            <p className="text-[calc(1*var(--u))] uppercase tracking-[0.3em] text-summit-smoke">{mounted ? dateFmt.format(new Date(now)) : " "}</p>
             <Rolling
               text={mounted ? clockFmt.format(new Date(now)) : "--:--:--"}
-              className="mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(3.6*var(--tu))] font-bold leading-none tracking-[-0.02em]"
+              className="mt-[calc(0.2*var(--u))] font-[family-name:var(--font-archivo)] text-[calc(3.6*var(--u))] font-bold leading-none tracking-[-0.02em]"
             />
           </div>
           {/* Hidden once full screen: from there Esc or F is the way out and
@@ -990,7 +990,7 @@ export default function BoardPage() {
               onClick={toggleFullscreen}
               aria-label="Show the board full screen (F)"
               title="Full screen (F)"
-              className="flex items-center gap-[calc(0.6*var(--u))] rounded-full border border-summit-lilac/20 bg-summit-lilac/5 px-[calc(1.2*var(--u))] py-[calc(0.7*var(--u))] text-[calc(0.9*var(--tu))] uppercase tracking-[0.25em] text-summit-lilac transition hover:border-summit-cerise/60 hover:bg-summit-cerise/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise"
+              className="flex items-center gap-[calc(0.6*var(--u))] rounded-full border border-summit-lilac/20 bg-summit-lilac/5 px-[calc(1.2*var(--u))] py-[calc(0.7*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-lilac transition hover:border-summit-cerise/60 hover:bg-summit-cerise/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-summit-cerise"
               animate={nudge ? { scale: [1, 1.06, 1], boxShadow: ["0 0 0 0 rgb(229 37 154 / 0.0)", "0 0 0 10px rgb(229 37 154 / 0.25)", "0 0 0 0 rgb(229 37 154 / 0.0)"] } : {}}
               transition={nudge ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" } : {}}
             >
@@ -1025,14 +1025,14 @@ export default function BoardPage() {
       >
         {/* column legend */}
         {view === "rooms" ? (
-          <div className="relative mt-[calc(1.2*var(--u))] hidden grid-cols-[14vw_1fr_1fr_0.7fr] gap-[calc(2*var(--u))] px-[calc(1.2*var(--u))] text-[calc(0.9*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke/70 md:grid">
+          <div className="relative mt-[calc(1.2*var(--u))] hidden grid-cols-[14vw_1fr_1fr_0.7fr] gap-[calc(2*var(--u))] px-[calc(1.2*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70 md:grid">
             <span>Room</span>
             <span>Now</span>
             <span>Next</span>
             <span>Then</span>
           </div>
         ) : (
-          <div className="relative mt-[calc(1.2*var(--u))] hidden grid-cols-[11vw_1fr_16vw_15vw] gap-[calc(2*var(--u))] px-[calc(1.6*var(--u))] text-[calc(0.9*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke/70 md:grid">
+          <div className="relative mt-[calc(1.2*var(--u))] hidden grid-cols-[11vw_1fr_16vw_15vw] gap-[calc(2*var(--u))] px-[calc(1.6*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70 md:grid">
             <span>Time</span>
             <span>Session</span>
             <span>Room</span>
@@ -1050,10 +1050,10 @@ export default function BoardPage() {
                 ))}
               </AnimatePresence>
               {sessions === null && !error && (
-                <li className="flex flex-1 items-center justify-center text-[calc(1.4*var(--tu))] text-summit-smoke">Loading the programme…</li>
+                <li className="flex flex-1 items-center justify-center text-[calc(1.4*var(--u))] text-summit-smoke">Loading the programme…</li>
               )}
               {sessions !== null && rows.length === 0 && (
-                <li className="flex flex-1 items-center justify-center text-[calc(1.4*var(--tu))] text-summit-smoke">Nothing more scheduled for today.</li>
+                <li className="flex flex-1 items-center justify-center text-[calc(1.4*var(--u))] text-summit-smoke">Nothing more scheduled for today.</li>
               )}
             </ul>
           </LayoutGroup>
@@ -1077,9 +1077,9 @@ export default function BoardPage() {
                   }`}
                 >
                   <div className="flex flex-col justify-center md:border-r md:border-summit-lilac/10 md:pr-[calc(1.5*var(--u))]">
-                    <p className="text-[calc(0.9*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke">Room</p>
+                    <p className="text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke">Room</p>
                     <div className="mt-[calc(0.2*var(--u))] flex items-start justify-between gap-[calc(0.8*var(--u))]">
-                      <p className="font-[family-name:var(--font-archivo)] text-[calc(1.9*var(--tu))] font-bold leading-[1.05] tracking-[-0.02em]">{lane.room}</p>
+                      <p className="font-[family-name:var(--font-archivo)] text-[calc(1.9*var(--u))] font-bold leading-[1.05] tracking-[-0.02em]">{lane.room}</p>
                       {/* the expander: this room's door sign, full screen */}
                       <button
                         type="button"
@@ -1114,10 +1114,10 @@ export default function BoardPage() {
             </AnimatePresence>
 
             {sessions === null && !error && (
-              <div className="flex flex-1 items-center justify-center text-[calc(1.4*var(--tu))] text-summit-smoke">Loading the programme…</div>
+              <div className="flex flex-1 items-center justify-center text-[calc(1.4*var(--u))] text-summit-smoke">Loading the programme…</div>
             )}
             {sessions !== null && lanes.length === 0 && (
-              <div className="flex flex-1 items-center justify-center text-[calc(1.4*var(--tu))] text-summit-smoke">Nothing scheduled for today.</div>
+              <div className="flex flex-1 items-center justify-center text-[calc(1.4*var(--u))] text-summit-smoke">Nothing scheduled for today.</div>
             )}
           </section>
         </LayoutGroup>
@@ -1138,7 +1138,7 @@ export default function BoardPage() {
       </AnimatePresence>
 
       {/* footer */}
-      <footer className="relative mt-[calc(1.2*var(--u))] flex items-center justify-between border-t border-summit-lilac/10 pt-[calc(1*var(--u))] text-[calc(0.9*var(--tu))] uppercase tracking-[0.25em] text-summit-smoke/70">
+      <footer className="relative mt-[calc(1.2*var(--u))] flex items-center justify-between border-t border-summit-lilac/10 pt-[calc(1*var(--u))] text-[calc(0.9*var(--u))] uppercase tracking-[0.25em] text-summit-smoke/70">
         <span>All times West Africa Time{fullscreenSupported && !fullscreen ? " · press F for full screen" : ""}</span>
         <span className="flex items-center gap-[calc(0.6*var(--u))]">
           <span className={`inline-block h-[calc(0.6*var(--u))] w-[calc(0.6*var(--u))] rounded-full ${stale ? "bg-summit-cream" : "bg-summit-green"}`} />
