@@ -120,6 +120,18 @@ export function useCapture(roomName: string | null, diarise = true) {
        * restarted, which emits a fresh header. Without this the desk looks
        * fine and no caption has appeared since the blip.
        */
+      /**
+       * Start a new recording. MediaRecorder only emits the WebM header in
+       * its first chunk, so a transcription stream that started after us can
+       * make nothing of the audio until we begin again.
+       */
+      const freshRecording = () => {
+        const r = res.current;
+        if (!r) return;
+        if (r.recorder.state !== "inactive") r.recorder.stop();
+        r.recorder.start(250);
+      };
+
       const onDisconnect = () => setConnected(false);
       const onReconnect = () => {
         setConnected(true);
@@ -129,17 +141,27 @@ export function useCapture(roomName: string | null, diarise = true) {
           } catch {
             // the room registry replays it too; a failure here is not fatal
           }
-          const r = res.current;
-          if (!r) return;
-          if (r.recorder.state !== "inactive") r.recorder.stop();
-          r.recorder.start(250);
+          freshRecording();
         })();
+      };
+      /**
+       * The server's transcription stream dropped and came back without us
+       * noticing - our own socket never went down. It cannot read a container
+       * it did not see the start of, so it asks for a new one. Without this
+       * the reopened stream is fed mid-stream audio, gives up within seconds,
+       * and the loop repeats until somebody restarts capture by hand.
+       */
+      const onServerRestart = (payload: { room?: string }) => {
+        if (payload?.room && payload.room !== roomName) return;
+        freshRecording();
       };
       socket.on("disconnect", onDisconnect);
       socket.on("connect", onReconnect);
+      socket.on("capture:restart", onServerRestart);
       cleanupSocketRef.current = () => {
         socket.off("disconnect", onDisconnect);
         socket.off("connect", onReconnect);
+        socket.off("capture:restart", onServerRestart);
       };
       setConnected(socket.connected);
 

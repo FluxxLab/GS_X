@@ -45,6 +45,8 @@ export interface Session {
   track: Track;
   type: string;
   audience?: string;
+  /** Recording or live stream for this session. Any link; the apps play what they can. */
+  videoUrl?: string | null;
   status: SessionStatus;
    speakers?: { id: string; name: string; role: string | null; organisation: string | null }[];
 }

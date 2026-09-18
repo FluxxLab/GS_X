@@ -41,6 +41,7 @@ const inputCls =
     track: (session?.track ?? "") as Track,
     type: session?.type ?? "Breakout Session",
     audience: session?.audience ?? "",
+    videoUrl: session?.videoUrl ?? "",
     });
   const { data: sessions } = useSessions();
   const { data: speakers } = useSpeakers();
@@ -260,6 +261,21 @@ const inputCls =
         </Select>
         <input className={inputCls} placeholder="Type (e.g. Breakout Session)" required value={form.type} onChange={(e) => set("type", e.target.value)} />
         <input className={inputCls} placeholder="Audience (optional)" value={form.audience} onChange={(e) => set("audience", e.target.value)} />
+
+        {/* Paste whatever link the video sits behind. The apps read YouTube
+            watch, youtu.be, /live and /embed addresses and play them inline;
+            anything else is offered to delegates as a link to open. */}
+        <div className="flex flex-col gap-1">
+          <input
+            className={inputCls}
+            placeholder="Video link (optional): YouTube recording or live stream"
+            value={form.videoUrl}
+            onChange={(e) => set("videoUrl", e.target.value)}
+          />
+          {form.videoUrl.trim() !== "" && !/^https?:\/\//i.test(form.videoUrl.trim()) && (
+            <p className="text-xs text-summit-cream">Include https:// so the link opens.</p>
+          )}
+        </div>
       </div>
       {ripple?.clashBefore && (
         <p className="rounded-xl border border-summit-cerise/30 bg-summit-cerise/10 px-4 py-3 text-sm text-summit-cream">
