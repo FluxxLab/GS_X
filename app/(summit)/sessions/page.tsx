@@ -23,6 +23,7 @@ import {
   useSpeakerReveal,
 } from "@/lib/summit/speakers";
 import { SessionForm } from "@/app/(summit)/_components/SessionForm";
+import { AutomaticNotifications } from "@/app/(summit)/_components/AutomaticNotifications";
 import {
   Select,
   SelectContent,
@@ -283,6 +284,8 @@ export default function SessionsPage(){
           </button>
         </div>
       </header>
+
+      <AutomaticNotifications />
 
       {/* After an import: what the database still holds on those dates that
           the sheet no longer lists. Left in place by default - a session with

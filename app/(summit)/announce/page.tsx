@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Megaphone, Trash2 } from "lucide-react";
+import { ExternalLink, Megaphone, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   SEGMENTS,
@@ -9,6 +9,7 @@ import {
   useSendNotification,
   type Segment,
 } from "@/lib/summit/notifications";
+import { useSessions } from "@/lib/summit/sessions";
 
 const inputCls =
   "w-full rounded-xl border border-summit-lilac/15 bg-summit-lilac/5 px-3 py-2 text-sm text-summit-lilac placeholder:text-summit-smoke/60 focus:border-summit-cerise";
@@ -23,6 +24,13 @@ export default function Announce(){
     const [body, setBody] = useState("");
     const [category, setCategory] = useState("");
     const [segment, setSegment] = useState<Segment>("all");
+    // Where a tap on the notification leads. Either, neither, never both:
+    // a session opens inside the app, a link leaves it for the browser, and
+    // one tap can only do one thing.
+    const [sessionId, setSessionId] = useState("");
+    const [linkUrl, setLinkUrl] = useState("");
+    const { data: sessions } = useSessions();
+    const sessionTitle = (id?: string | null) => sessions?.find((s) => s.id === id)?.title;
     const [confirming, setConfirming] = useState(false);
     const [done, SetDone] = useState(false);
 
@@ -32,11 +40,20 @@ export default function Announce(){
             setConfirming(true);
             return;
         }
-        await send.mutateAsync({title, body, segment,...(category ?{category}: {})});
+        await send.mutateAsync({
+          title,
+          body,
+          segment,
+          ...(category ? { category } : {}),
+          ...(sessionId ? { sessionId } : {}),
+          ...(linkUrl.trim() ? { linkUrl: linkUrl.trim() } : {}),
+        });
         setTitle("");
         setBody("");
         setCategory("");
         setSegment("all");
+        setSessionId("");
+        setLinkUrl("");
         setConfirming(false);
         SetDone(true);
         setTimeout(() => SetDone(false), 4000);
@@ -61,6 +78,38 @@ export default function Announce(){
           onChange={(e) => { setBody(e.target.value); setConfirming(false); }} />
         <input className={inputCls} placeholder="Category (optional, e.g. schedule-change)" maxLength={100}
           value={category} onChange={(e) => setCategory(e.target.value)} />
+
+        <fieldset className="flex flex-col gap-2 rounded-xl border border-summit-lilac/10 p-3">
+          <legend className="px-1 text-xs uppercase tracking-wide text-summit-smoke">
+            Links to (optional)
+          </legend>
+          <p className="text-xs text-summit-smoke">
+            Tapping the notification opens this. Leave both empty for a plain announcement.
+          </p>
+          <select
+            className={inputCls}
+            value={sessionId}
+            onChange={(e) => { setSessionId(e.target.value); if (e.target.value) setLinkUrl(""); setConfirming(false); }}
+            aria-label="Session this announcement is about"
+          >
+            <option value="">No session</option>
+            {(sessions ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                Day {s.day}: {s.title}
+              </option>
+            ))}
+          </select>
+          <input
+            className={inputCls}
+            type="url"
+            inputMode="url"
+            placeholder="or a web address, e.g. https://policycentre.org/communique"
+            maxLength={500}
+            value={linkUrl}
+            disabled={Boolean(sessionId)}
+            onChange={(e) => { setLinkUrl(e.target.value); setConfirming(false); }}
+          />
+        </fieldset>
 
         <div className="flex flex-wrap gap-2">
           {SEGMENTS.map((s) => (
@@ -113,6 +162,12 @@ export default function Announce(){
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{n.title}</p>
                 <p className="truncate text-xs text-summit-smoke">{n.body}</p>
+                {(n.sessionId || n.linkUrl) && (
+                  <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-summit-cerulean">
+                    <ExternalLink className="size-3 shrink-0" />
+                    {n.sessionId ? (sessionTitle(n.sessionId) ?? "a session") : n.linkUrl}
+                  </p>
+                )}
               </div>
               <span className="rounded-full bg-summit-cerulean/15 px-2.5 py-0.5 text-[11px] text-summit-cerulean uppercase">
                 {n.segment}

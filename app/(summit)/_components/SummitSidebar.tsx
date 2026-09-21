@@ -21,6 +21,7 @@ import {
   X,
   Zap,
   MessagesSquare,
+  CalendarRange,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/summit/auth";
@@ -28,6 +29,7 @@ import { useMe } from "@/lib/summit/delegates";
 
 const NAV = [
     {href: "/overview", label: "Overview", icon: LayoutDashboard},
+    { href: "/editions", label: "Editions", icon: CalendarRange },
     {href: "/sessions", label: "Sessions", icon: CalendarClock},
     {href: "/delegates", label: "Delegates", icon: UsersRound},
     {href: "/live-ops", label:"Live Ops", icon: Zap},

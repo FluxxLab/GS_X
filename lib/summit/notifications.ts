@@ -10,6 +10,9 @@ export interface Notification {
   body: string;
   category?: string;
   segment: Segment;
+  /** Where a tap leads: a session in the app, or an address outside it. */
+  sessionId?: string | null;
+  linkUrl?: string | null;
   createdAt?: string;
 }
 
