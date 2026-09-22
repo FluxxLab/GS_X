@@ -1,5 +1,8 @@
 "use client";
 
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   useTracks,
@@ -41,8 +44,24 @@ const inputCls =
     track: (session?.track ?? "") as Track,
     type: session?.type ?? "Breakout Session",
     audience: session?.audience ?? "",
-    videoUrl: session?.videoUrl ?? "",
+    // one row per recording; an existing single link becomes the first row
+    videos:
+      session?.videos?.length
+        ? session.videos.map((v) => ({ url: v.url, title: v.title ?? "" }))
+        : session?.videoUrl
+          ? [{ url: session.videoUrl, title: "" }]
+          : [],
     });
+  const setVideo = (i: number, patch: Partial<{ url: string; title: string }>) =>
+    setForm((f) => ({
+      ...f,
+      videos: f.videos.map((v, j) => (j === i ? { ...v, ...patch } : v)),
+    }));
+  const addVideo = () =>
+    setForm((f) => ({ ...f, videos: [...f.videos, { url: "", title: "" }] }));
+  const removeVideo = (i: number) =>
+    setForm((f) => ({ ...f, videos: f.videos.filter((_, j) => j !== i) }));
+
   const { data: sessions } = useSessions();
   const { data: speakers } = useSpeakers();
 
@@ -262,20 +281,57 @@ const inputCls =
         <input className={inputCls} placeholder="Type (e.g. Breakout Session)" required value={form.type} onChange={(e) => set("type", e.target.value)} />
         <input className={inputCls} placeholder="Audience (optional)" value={form.audience} onChange={(e) => set("audience", e.target.value)} />
 
-        {/* Paste whatever link the video sits behind. The apps read YouTube
-            watch, youtu.be, /live and /embed addresses and play them inline;
-            anything else is offered to delegates as a link to open. */}
-        <div className="flex flex-col gap-1">
-          <input
-            className={inputCls}
-            placeholder="Video link (optional): YouTube recording or live stream"
-            value={form.videoUrl}
-            onChange={(e) => set("videoUrl", e.target.value)}
-          />
-          {form.videoUrl.trim() !== "" && !/^https?:\/\//i.test(form.videoUrl.trim()) && (
-            <p className="text-xs text-summit-cream">Include https:// so the link opens.</p>
+        {/* One row per recording. A plenary uploaded in two halves is two
+            rows; give each a title so delegates know which is which. The
+            apps play YouTube addresses inline and offer anything else as a
+            link. */}
+        <fieldset className="flex flex-col gap-2 rounded-xl border border-summit-lilac/10 p-3">
+          <legend className="px-1 text-xs uppercase tracking-wide text-summit-smoke">
+            Recordings (optional)
+          </legend>
+          {form.videos.length === 0 && (
+            <p className="text-xs text-summit-smoke">No recording yet.</p>
           )}
-        </div>
+          {form.videos.map((video, i) => (
+            <div key={i} className="flex flex-col gap-1">
+              <div className="flex gap-2">
+                <input
+                  className={inputCls}
+                  placeholder="https://youtu.be/..."
+                  value={video.url}
+                  onChange={(e) => setVideo(i, { url: e.target.value })}
+                  aria-label={`Recording ${i + 1} link`}
+                />
+                <input
+                  className={cn(inputCls, "max-w-[45%]")}
+                  placeholder={form.videos.length > 1 ? `Title, e.g. Part ${i + 1}` : "Title (optional)"}
+                  maxLength={80}
+                  value={video.title}
+                  onChange={(e) => setVideo(i, { title: e.target.value })}
+                  aria-label={`Recording ${i + 1} title`}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeVideo(i)}
+                  className="shrink-0 rounded-full px-2 text-summit-smoke hover:bg-summit-lilac/10 hover:text-summit-lilac"
+                  aria-label={`Remove recording ${i + 1}`}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              {video.url.trim() !== "" && !/^https?:\/\//i.test(video.url.trim()) && (
+                <p className="text-xs text-summit-cream">Include https:// so the link opens.</p>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addVideo}
+            className="self-start rounded-full px-3 py-1 text-xs text-summit-cerise hover:bg-summit-cerise/10"
+          >
+            + Add a recording
+          </button>
+        </fieldset>
       </div>
       {ripple?.clashBefore && (
         <p className="rounded-xl border border-summit-cerise/30 bg-summit-cerise/10 px-4 py-3 text-sm text-summit-cream">

@@ -34,6 +34,11 @@ export function useTracks() {
 export const SESSION_STATUSES = ["scheduled", "live", "completed"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
+export interface SessionVideoLink {
+  url: string;
+  title?: string;
+}
+
 export interface Session {
   id: string;
   title: string;
@@ -45,8 +50,10 @@ export interface Session {
   track: Track;
   type: string;
   audience?: string;
-  /** Recording or live stream for this session. Any link; the apps play what they can. */
+  /** First recording. Kept by the API for clients that predate `videos`. */
   videoUrl?: string | null;
+  /** Every recording, in order, each with an optional title shown above it. */
+  videos?: SessionVideoLink[];
   status: SessionStatus;
    speakers?: { id: string; name: string; role: string | null; organisation: string | null }[];
 }
